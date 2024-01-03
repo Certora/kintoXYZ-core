@@ -11,3 +11,4 @@ bin
 
 # Certora
 .certora_internal/*
+certora/munged/*

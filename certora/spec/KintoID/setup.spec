@@ -6,7 +6,13 @@ methods {
     function _.proxiableUUID() external => ERC1822ProxiableUUID(calledContract) expect bytes32;
 
     /// KintoID
-    function lastMonitoredAt() external returns(uint256) envfree;
+    function lastMonitoredAt() external returns (uint256) envfree;
+    function isSanctionsSafeIn(address,uint16) external returns (bool);
+    function nonces(address) external returns (uint256) envfree;
+    function KYC_PROVIDER_ROLE() external returns (bytes32) envfree;
+    function DEFAULT_ADMIN_ROLE() external returns (bytes32) envfree;
+    function hasRole(bytes32, address) external returns (bool) envfree;
+    function getRoleAdmin(bytes32) external returns (bytes32) envfree;
 
     /// KYCViewer
     function viewer.isKYC(address _address) external returns (bool);
@@ -36,4 +42,10 @@ invariant lastMonitoredAtInThePast(env e)
         preserved with (env eP) {
             require e.block.timestamp == eP.block.timestamp;
         }
+    }
+
+invariant AdminRoleIsDefaultRole(bytes32 role)
+    getRoleAdmin(role) == DEFAULT_ADMIN_ROLE()
+    {
+        preserved with (env e) {require e.msg.sender != 0;}
     }

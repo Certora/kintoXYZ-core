@@ -120,4 +120,3 @@ rule monitorAccountsCannotFrontRun(address account1, address account2) {
 
     assert !lastReverted;
 }
-

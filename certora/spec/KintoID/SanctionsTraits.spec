@@ -12,7 +12,12 @@ methods {
 │ Ghost & hooks: sanctions meta data                                                                                 │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-ghost mapping(address => uint8) _sanctionsCount;
+/// Maximum number of sanctions (assumed).
+definition MAX_SANCTIONS() returns uint8 = 200;
+
+ghost mapping(address => uint8) _sanctionsCount {
+    axiom forall address account. _sanctionsCount[account] <= MAX_SANCTIONS();
+}
 
 hook Sload uint8 count _kycmetas[KEY address account].sanctionsCount STORAGE {
     require _sanctionsCount[account] == count;
@@ -29,7 +34,7 @@ function getSanctionsCount(address account) returns uint8 {
 
 /*
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Rules: sanctions                                                                              │
+│ Rules: sanctions                                                                                                    │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 
@@ -51,9 +56,9 @@ rule onlySanctionMethodCanSanction(method f) filtered{f -> !viewOrUpgrade(f)} {
     bool sanctioned_after = isSanctioned(e, account, CID);
 
     assert !sanctioned_before && sanctioned_after =>
-        f.selector == sig:addSanction(address,uint16).selector;
+        (f.selector == sig:addSanction(address,uint16).selector || monitorMethods(f));
     assert sanctioned_before && !sanctioned_after =>
-        f.selector == sig:removeSanction(address,uint16).selector;
+        (f.selector == sig:removeSanction(address,uint16).selector || monitorMethods(f));
 }
 
 rule addSanctionIntegrity(address account, uint16 CID) {
@@ -115,6 +120,38 @@ rule removeSanctionIdempotent(address account, uint16 CID) {
         "Removing a sanction a second time shouldn't change anything";
 }
 
+rule addSanctionCommutativity() {
+    env e;
+    address accountA; uint16 CID_A;
+    address accountB; uint16 CID_B;
+    
+    storage initState = lastStorage;
+        addSanction(e, accountA, CID_A) at initState;
+        addSanction(e, accountB, CID_B);
+    storage stateA = lastStorage;
+        addSanction(e, accountB, CID_B) at initState;
+        addSanction(e, accountA, CID_A);
+    storage stateB = lastStorage;
+
+    assert stateA[currentContract] == stateB[currentContract];
+}
+
+rule removeSanctionCommutativity() {
+    env e;
+    address accountA; uint16 CID_A;
+    address accountB; uint16 CID_B;
+    
+    storage initState = lastStorage;
+        removeSanction(e, accountA, CID_A) at initState;
+        removeSanction(e, accountB, CID_B);
+    storage stateA = lastStorage;
+        removeSanction(e, accountB, CID_B) at initState;
+        removeSanction(e, accountA, CID_A);
+    storage stateB = lastStorage;
+
+    assert stateA[currentContract] == stateB[currentContract];
+}
+
 rule addedSanctionCanBeRemoved(address account, uint16 CID) {
     env e1;
     env e2; require e2.msg.value == 0; 
@@ -130,6 +167,9 @@ rule addedSanctionCanBeRemoved(address account, uint16 CID) {
     assert hasRole2 => !lastReverted;
 }
 
+/// @rule: Once a sanction is added, it can be removed.
+/// The addSanction method can revert, if the sanctions count overflows.
+/// One has to assume the count is always < max_uint8.
 rule removedSanctionCanBeAdded(address account, uint16 CID) {
     env e1;
     env e2; require e2.msg.value == 0;
@@ -144,6 +184,43 @@ rule removedSanctionCanBeAdded(address account, uint16 CID) {
     addSanction@withrevert(e2, account, CID);
     assert hasRole2 => !lastReverted;
 }
+
+rule addingOrRemovingSanctionsAreIndependent(bool addOrRemove_A, bool addOrRemove_B) {
+    env eA;
+    env eB;
+    address accountA; uint16 CID_A;
+    address accountB; uint16 CID_B;
+
+    storage initState = lastStorage;
+    if(addOrRemove_A) {
+        addSanction(eA, accountA, CID_A) at initState;
+    }
+    else {
+        removeSanction(eA, accountA, CID_A) at initState;
+    }
+
+    if(addOrRemove_B) {
+        addSanction(eB, accountB, CID_B) at initState;
+    }
+    else {
+        removeSanction(eB, accountB, CID_B) at initState;
+    }
+    if(addOrRemove_A) {
+        addSanction@withrevert(eB, accountB, CID_B);
+    }
+    else {
+        removeSanction@withrevert(eB, accountB, CID_B);
+    }
+
+    assert (accountA == accountB && CID_A == CID_B) => !lastReverted;
+}
+
+/*
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Rules: Traits                                                                                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+*/
+
 
 rule addedTraitCanBeRemoved(address account, uint8 TID) {
     env e1;

@@ -5,8 +5,21 @@ invariant AllowedSignerPolicy()
     signerPolicy() == MINUS_ONE_SIGNER() ||
     signerPolicy() == ALL_SIGNERS();
 
+invariant ZeroAddressApp()
+    appSigner(0) == 0;
+
 invariant NumberOfOwnersIntegrity()
     require_uint256(MAX_SIGNERS()) >= getOwnersCount() && getOwnersCount() > 0;
+
+rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isView} {
+    bool ownerBefore = isOwner(account);
+        env e;
+        calldataarg args;
+        f(e, args);
+    bool ownerAfter = isOwner(account);
+
+    assert ownerBefore => ownerAfter;
+}
 
 rule entryPointPriviligedFunctions(method f) 
 filtered{f -> !f.isView} {

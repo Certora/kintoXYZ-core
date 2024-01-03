@@ -32,6 +32,9 @@ definition transferMethods(method f) returns bool =
 definition upgradeMethods(method f) returns bool = 
     f.selector == sig:upgradeToAndCall(address,bytes).selector;
 
+definition monitorMethods(method f) returns bool = 
+    f.selector == sig:monitor(address[],IKintoID.MonitorUpdateData[][]).selector;
+
 definition viewOrUpgrade(method f) returns bool = upgradeMethods(f) || f.isView;
 
 definition senderIsSelf(env e) returns bool = e.msg.sender == currentContract;

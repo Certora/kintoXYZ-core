@@ -13,13 +13,17 @@ methods {
     function appWhitelist(address) external returns (bool) envfree;
     function getOwnersCount() external returns (uint) envfree;
     function signerPolicy() external returns (uint8) envfree;
+    function recoverer() external returns (address) envfree;
     function SINGLE_SIGNER() external returns (uint8) envfree;
     function MINUS_ONE_SIGNER() external returns (uint8) envfree;
     function ALL_SIGNERS() external returns (uint8) envfree;
     function MAX_SIGNERS() external returns (uint8) envfree;
-    function MockECDSA.recoverMock(bytes32, bytes) external returns (address) envfree;
+    function KintoWallet._getAppContract(bytes calldata) internal returns (address) => NONDET;
 
+    /// ECDSA
+    function MockECDSA.recoverMock(bytes32, bytes) external returns (address) envfree;
     function ECDSA.recover(bytes32 hash, bytes memory signature) internal returns (address) => recoverCVL(hash, signature);
+    function ECDSA.toEthSignedMessageHash(bytes32 hash) internal returns (bytes32) => signedMessageHash(hash);
 
     /// IKintoID
     function _.isKYC(address account) external with (env e) => isKYC_CVL(e.block.timestamp, account) expect bool;
@@ -35,12 +39,18 @@ definition entryPointPriviliged(method f) returns bool =
     f.selector == sig:executeBatch(address[],uint256[],bytes[]).selector ||
     f.selector == sig:validateUserOp(KintoWallet.UserOperation,bytes32,uint256).selector;
 
+definition isResetSigners(method f) returns bool = 
+    f.selector == sig:finishRecovery(address[]).selector ||
+    f.selector == sig:resetSigners(address[],uint8).selector;
+
 /// Mock for the KintoID.isKYC(uint256 timestamp, address account) function.
 function isKYC_CVL(uint256 time, address account) returns bool {
     return _isKYC[time][account];
 }
-/// Transaction hash => signature hash => signer.
+/// hashed message => signature hash => signer.
 persistent ghost mapping(bytes32 => mapping(bytes32 => address)) _recoverMap;
+/// Generic ghost function for function toEthSignedMessageHash(bytes32 hash)
+persistent ghost signedMessageHash(bytes32) returns bytes32;
 
 function recoverCVL(bytes32 hash, bytes signature) returns address {
     /// First option: CVL mapping

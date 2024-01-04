@@ -1,5 +1,15 @@
 import "setup.spec";
 
+rule ValidateUserOpSanity() {
+    env e;
+    KintoWallet.UserOperation userOp;
+    bytes32 userOpHash;
+    uint256 missingAccountFunds;
+    uint256 validationData = validateUserOp(e, userOp, userOpHash, missingAccountFunds);
+
+    satisfy validationData != 1;
+}
+
 invariant AllowedSignerPolicy()
     signerPolicy() == SINGLE_SIGNER() ||
     signerPolicy() == MINUS_ONE_SIGNER() ||
@@ -18,7 +28,26 @@ rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isVie
         f(e, args);
     bool ownerAfter = isOwner(account);
 
-    assert ownerBefore => ownerAfter;
+    assert ownerBefore != ownerAfter => isResetSigners(f);
+}
+
+rule firstOwnerIsChangedOnlyByRecovery(method f) filtered{f -> !f.isView} {
+    address firstOwner_before = owners(0);
+        env e;
+        calldataarg args;
+        f(e, args);
+    address firstOwner_after = owners(0);  
+
+    assert firstOwner_after != firstOwner_before => f.selector == sig:finishRecovery(address[]).selector;
+}
+
+rule finishRecoveryIntegrity() {
+    env e;
+    address[] signers;
+    finishRecovery(e, signers);
+    assert owners(0) == signers[0];
+    assert owners(1) == signers[1];
+    assert owners(2) == signers[2];
 }
 
 rule entryPointPriviligedFunctions(method f) 

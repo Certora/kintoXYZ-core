@@ -1,4 +1,4 @@
-//using EntryPoint as entry;
+using EntryPointMock as entry;
 
 methods {
     /// IERC1822ProxiableUpgradeable
@@ -16,6 +16,8 @@ methods {
     function depositInfo(address) external returns (uint256,uint256) envfree;
     function getDeposit() external returns (uint256) envfree;
     function appUserLimit(address,address) external returns (uint256,uint256,uint256,uint256) envfree;
+
+    function entry.decodeContext(bytes) external returns (address,address,uint256) envfree;
 }
 
 /*struct RateLimitData {
@@ -23,6 +25,12 @@ methods {
     uint256 operationCount;
     uint256 ethCostCount;
 }*/
+
+function contextDecode(bytes context) returns (address, address, uint256) {
+    address account; address user; uint256 gasPrice;
+    account, user, gasPrice = entry.decodeContext(context);
+    return (account, user, gasPrice);
+}
 
 persistent ghost ERC1822ProxiableUUID(address) returns bytes32;
 

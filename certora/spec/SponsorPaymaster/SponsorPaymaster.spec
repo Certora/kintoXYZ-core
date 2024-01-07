@@ -14,6 +14,74 @@ invariant PaymasterEthSolvency()
         }
     }
 
+rule postOpGasCostIsUserFree() {
+    env e;
+    IPaymaster.PostOpMode modeA;
+    IPaymaster.PostOpMode modeB;
+    bytes contextA; uint256 priceA; address accountA; 
+        accountA, _, priceA = contextDecode(contextA);
+    bytes contextB;  uint256 priceB; address accountB;
+        accountB, _, priceB = contextDecode(contextB);
+    uint256 actualGasCost;
+    storage initState = lastStorage;
+
+    uint256 spentA_0 = contractSpent(accountA);
+    uint256 spentB_0 = contractSpent(accountB);
+
+    postOp(e, modeA, contextA, actualGasCost) at initState;
+    uint256 spentA_1 = contractSpent(accountA);
+    uint256 spentB_1 = contractSpent(accountB);
+    
+    postOp(e, modeB, contextB, actualGasCost) at initState;
+    uint256 spentA_2 = contractSpent(accountA);
+    uint256 spentB_2 = contractSpent(accountB);
+
+    assert accountA != accountB => spentB_0 == spentB_1, "The contract spent gas could only change for the account";
+    assert accountA != accountB => spentA_0 == spentA_2, "The contract spent gas could only change for the account";
+    assert priceB == priceA => spentA_1 - spentA_0 == spentB_2 - spentB_0, 
+        "If the gas price doesn't change between calls, then the spent amount shouldn't changed";
+}
+
+rule validatePayMasterCannotFrontRunEachOther() {
+    env e1;
+    env e2;
+    SponsorPaymaster.UserOperation userOp1;
+    SponsorPaymaster.UserOperation userOp2;
+    bytes32 userOpHash1;
+    bytes32 userOpHash2;
+    uint256 maxCost1;
+    uint256 maxCost2;
+
+    storage initState = lastStorage;
+
+    validatePaymasterUserOp(e1, userOp1, userOpHash1, maxCost1) at initState;
+
+    validatePaymasterUserOp(e2, userOp2, userOpHash2, maxCost2) at initState;
+    validatePaymasterUserOp@withrevert(e1, userOp1, userOpHash1, maxCost1);
+
+    assert !lastReverted;
+}
+
+rule postOpUpdatesLimits() {
+    env e;
+    address sender; address account;
+    uint256 count1; uint256 lastOpTime_rate1; uint256 ethCount1; uint256 lastOpTime_cost1;
+    uint256 count2; uint256 lastOpTime_rate2; uint256 ethCount2; uint256 lastOpTime_cost2;
+    
+    count1, lastOpTime_rate1, ethCount1, lastOpTime_cost1 = appUserLimit(sender, account);
+
+    IPaymaster.PostOpMode mode;
+    bytes context;
+    uint256 gasCost;
+    address _account; address _sender;
+    _account, _sender, _ = contextDecode(context);
+    postOp(e, mode, context, gasCost);
+    
+    count2, lastOpTime_rate2, ethCount2, lastOpTime_cost2 = appUserLimit(sender, account);
+
+    assert lastOpTime_rate1 != lastOpTime_rate2 <=> (sender == _sender && account == _account);
+}
+
 rule onlyOneAppBalanceChangeAtATime(method f) filtered{f -> !viewOrUpgrade(f)} {
     env e;
     calldataarg args;

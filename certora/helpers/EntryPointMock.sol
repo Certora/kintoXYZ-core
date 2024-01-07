@@ -15,4 +15,10 @@ contract EntryPointMock is StakeManager, IEntryPoint {
         require(walletFactory == address(0), "AA36 wallet factory already set");
         walletFactory = _walletFactory;
     }
+
+    function decodeContext(bytes calldata context) external pure returns (address,address,uint256) {
+        (address account, address userAccount, uint256 gasPricePostOp) =
+            abi.decode(context, (address, address, uint256));
+        return (account, userAccount, gasPricePostOp);
+    }
 }

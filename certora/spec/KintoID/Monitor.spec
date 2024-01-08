@@ -12,7 +12,7 @@ rule monitorSanctionsCommutative(address account) {
     storage initState = lastStorage;
         monitor(e, accounts, traits1) at initState;
     storage state1 = lastStorage;
-        monitor(e, accounts, traits1) at initState;
+        monitor(e, accounts, traits2) at initState;
     storage state2 = lastStorage;
 
     assert state1[currentContract] == state2[currentContract];

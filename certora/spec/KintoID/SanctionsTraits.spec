@@ -3,6 +3,12 @@ import "IERC721.spec";
 
 use invariant AdminRoleIsDefaultRole filtered{f -> !upgradeMethods(f)}
 use invariant lastMonitoredAtInThePast filtered{f -> !upgradeMethods(f)}
+use invariant TokenIndexIsUpToArrayLength filtered{f -> !upgradeMethods(f)}
+use invariant NoOwnerNoIndex filtered{f -> !upgradeMethods(f)}
+use invariant TokenAtIndexConsistency filtered{f -> !upgradeMethods(f)}
+use invariant TokenBalanceIsZeroOrOne filtered{f -> !upgradeMethods(f)}
+use invariant BalanceOfZero filtered{f -> !upgradeMethods(f)}
+use invariant IsOwnedInTokensArray filtered{f -> !upgradeMethods(f)}
 
 methods {
     function isSanctioned(address, uint16) external returns (bool);
@@ -38,12 +44,16 @@ function getSanctionsCount(address account) returns uint8 {
 │ Rules: ERC721                                                                                                    │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-invariant TokenBalanceIsZeroOrOne(address account)
-    balanceOf(account) ==0 || balanceOf(account) == 1
-    filtered{f -> !upgradeMethods(f)}
 
-invariant BalanceOfZero()
-    balanceOf(0) == 0;
+rule ownerCanChangeOnlyFromZeroAndBack(uint256 tokenID, method f) filtered{f -> !viewOrUpgrade(f)} {
+    address ownerBefore = ownerOf(tokenID);
+        env e;
+        calldataarg args;
+        f(e, args);
+    address ownerAfter = ownerOf(tokenID);
+
+    assert ownerAfter != ownerBefore => (ownerBefore == 0 || ownerAfter == 0);
+}
 
 rule mintOnlyNextID(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
     uint256 tokenID = require_uint256(nextTokenId() + 1);
@@ -55,7 +65,7 @@ rule mintOnlyNextID(address account, method f) filtered{f -> !viewOrUpgrade(f)} 
     address ownerBefore = ownerOf(tokenID);
         env e;
         calldataarg args;
-            f(e, args);
+        f(e, args);
     uint256 balanceAfter = balanceOf(account);
     address ownerAfter = ownerOf(tokenID);
 
@@ -66,7 +76,7 @@ rule mintOnlyNextID(address account, method f) filtered{f -> !viewOrUpgrade(f)} 
     );
 }
 
-rule mintToOwnerOnly() {
+rule mintToOwnerOnly(bool companyOrIndividual) {
     env e;
     uint8[] traits;
     IKintoID.SignatureData signatureData;
@@ -74,7 +84,13 @@ rule mintToOwnerOnly() {
     address account = signatureData.signer;
     uint256 tokenID = require_uint256(nextTokenId() + 1);
     address ownerBefore = ownerOf(tokenID);
+    if(companyOrIndividual) {
         mintCompanyKyc(e, signatureData, traits);
+    }
+    else {
+        mintIndividualKyc(e, signatureData, traits);
+    }
+        
     address ownerAfter = ownerOf(tokenID);
 
     assert ownerBefore != ownerAfter;
@@ -89,6 +105,39 @@ rule onlyKYCCanChangeBalance(address account, method f) filtered{f -> !viewOrUpg
     uint256 balanceAfter = balanceOf(account);
 
     assert balanceBefore != balanceAfter => hasRole(KYC_PROVIDER_ROLE(), e.msg.sender);
+}
+
+rule burnByOwnerLiveness(uint256 tokenID) {
+    address owner = ownerOf(tokenID);
+
+    require balanceOf(owner) != 0; /// Can only burn if already minted (thus has balance).
+    require totalSupply() != 0; /// Assuming totalSupply() == sum of balances.
+    uint256 tokenIDEnd;
+    require tokensIndex[tokenIDEnd] == assert_uint256(NumberOfTokens - 1);
+    requireInvariant TokenIndexIsUpToArrayLength(tokenID);
+    requireInvariant TokenIndexIsUpToArrayLength(tokenIDEnd);
+    env e; 
+        require e.msg.sender == owner; /// Owner of token is the msg.sender.
+        require e.msg.value == 0; /// Not a payable function.
+    burn@withrevert(e, tokenID);
+    
+    assert !lastReverted;
+}
+
+rule cannotBurnRightAfterMint(IKintoID.SignatureData signatureData) {
+    bool companyOrIndividual;
+    env e1;
+    env e2;
+    uint8[] traits;
+    if(companyOrIndividual) {
+        mintCompanyKyc(e1, signatureData, traits);
+    }
+    else {
+        mintIndividualKyc(e1, signatureData, traits);
+    }
+    burnKYC@withrevert(e2, signatureData);
+
+    assert lastReverted;
 }
 
 /*
@@ -280,7 +329,6 @@ rule addingOrRemovingSanctionsAreIndependent(bool addOrRemove_A, bool addOrRemov
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 
-
 rule addedTraitCanBeRemoved(address account, uint8 TID) {
     env e1;
     env e2; require e2.msg.value == 0;
@@ -320,7 +368,7 @@ rule noncesIncreaseCorrectly(method f) filtered{f -> !viewOrUpgrade(f)} {
     uint256 nonceB_after = nonces(signerB);
 
     assert nonceA_before == nonceA_after || 
-        nonceA_after - nonceA_before == 1, "nonces can increase by 1 at most";
+        nonceA_after - nonceA_before == 1, "nonces cannot decrease and can increase by 1 at most";
     assert (nonceA_before != nonceA_after) && (nonceB_before != nonceB_after) =>
         signerA == signerB, "A nonce could only change for one signer at a time";
 }

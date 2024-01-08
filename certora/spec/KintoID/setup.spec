@@ -13,6 +13,7 @@ methods {
     function DEFAULT_ADMIN_ROLE() external returns (bytes32) envfree;
     function hasRole(bytes32, address) external returns (bool) envfree;
     function getRoleAdmin(bytes32) external returns (bytes32) envfree;
+    function nextTokenId() external returns (uint256) envfree;
 
     /// KYCViewer
     function viewer.isKYC(address _address) external returns (bool);

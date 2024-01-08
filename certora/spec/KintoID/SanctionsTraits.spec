@@ -1,4 +1,5 @@
 import "setup.spec";
+import "IERC721.spec";
 
 use invariant AdminRoleIsDefaultRole filtered{f -> !upgradeMethods(f)}
 use invariant lastMonitoredAtInThePast filtered{f -> !upgradeMethods(f)}
@@ -30,6 +31,64 @@ hook Sstore _kycmetas[KEY address account].sanctionsCount uint8 count (uint8 cou
 
 function getSanctionsCount(address account) returns uint8 {
     return _sanctionsCount[account];
+}
+
+/*
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Rules: ERC721                                                                                                    │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+*/
+invariant TokenBalanceIsZeroOrOne(address account)
+    balanceOf(account) ==0 || balanceOf(account) == 1
+    filtered{f -> !upgradeMethods(f)}
+
+invariant BalanceOfZero()
+    balanceOf(0) == 0;
+
+rule mintOnlyNextID(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
+    uint256 tokenID = require_uint256(nextTokenId() + 1);
+
+    requireInvariant TokenBalanceIsZeroOrOne(account);
+    requireInvariant BalanceOfZero();
+
+    uint256 balanceBefore = balanceOf(account);
+    address ownerBefore = ownerOf(tokenID);
+        env e;
+        calldataarg args;
+            f(e, args);
+    uint256 balanceAfter = balanceOf(account);
+    address ownerAfter = ownerOf(tokenID);
+
+    assert balanceAfter > balanceBefore => ownerBefore != ownerAfter;
+    assert balanceAfter > balanceBefore => (
+        f.selector == sig:mintCompanyKyc(IKintoID.SignatureData,uint8[]).selector || 
+        f.selector == sig:mintIndividualKyc(IKintoID.SignatureData,uint8[]).selector
+    );
+}
+
+rule mintToOwnerOnly() {
+    env e;
+    uint8[] traits;
+    IKintoID.SignatureData signatureData;
+
+    address account = signatureData.signer;
+    uint256 tokenID = require_uint256(nextTokenId() + 1);
+    address ownerBefore = ownerOf(tokenID);
+        mintCompanyKyc(e, signatureData, traits);
+    address ownerAfter = ownerOf(tokenID);
+
+    assert ownerBefore != ownerAfter;
+    assert ownerAfter == account;
+}
+
+rule onlyKYCCanChangeBalance(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
+    uint256 balanceBefore = balanceOf(account);
+        env e;
+        calldataarg args;
+            f(e,args);
+    uint256 balanceAfter = balanceOf(account);
+
+    assert balanceBefore != balanceAfter => hasRole(KYC_PROVIDER_ROLE(), e.msg.sender);
 }
 
 /*

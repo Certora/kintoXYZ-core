@@ -1,5 +1,14 @@
---- ../src/KintoID.sol	2024-01-02 18:35:16.979988177 +0200
-+++ 	2024-01-03 09:54:34.274736303 +0200
+--- ../src/KintoID.sol	2024-01-03 10:03:36.284643085 +0200
++++ 	2024-01-08 11:07:23.311804081 +0200
+@@ -36,7 +36,7 @@
+ 
+     /* ============ State Variables ============ */
+ 
+-    uint256 private _nextTokenId;
++    uint256 internal _nextTokenId;
+ 
+    // We'll monitor the whole list every single day and update it
+     uint256 public override lastMonitoredAt;
 @@ -295,6 +295,16 @@
      /* ============ View Functions ============ */
  

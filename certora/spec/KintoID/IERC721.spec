@@ -9,6 +9,7 @@ methods {
     function transferFrom(address,address,uint256) external;
     function approve(address,uint256) external;
     function setApprovalForAll(address,bool) external;
+    function totalSupply() external returns (uint256) envfree;
 
     // IERC721Metadata
     function name() external returns (string);

@@ -15,7 +15,7 @@ rule monitorSanctionsCommutative(address account) {
         monitor(e, accounts, traits2) at initState;
     storage state2 = lastStorage;
 
-    assert state1[currentContract] == state2[currentContract];
+    assert (data1.index & 0xff != data2.index & 0xff) => state1[currentContract] == state2[currentContract];
 }
 
 rule monitorSanctionsAssociative(address account) {

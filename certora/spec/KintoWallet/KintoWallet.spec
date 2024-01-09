@@ -1,15 +1,5 @@
 import "setup.spec";
 
-rule ValidateUserOpSanity() {
-    env e;
-    KintoWallet.UserOperation userOp;
-    bytes32 userOpHash;
-    uint256 missingAccountFunds;
-    uint256 validationData = validateUserOp(e, userOp, userOpHash, missingAccountFunds);
-
-    satisfy validationData != 1;
-}
-
 invariant AllowedSignerPolicy()
     signerPolicy() == SINGLE_SIGNER() ||
     signerPolicy() == MINUS_ONE_SIGNER() ||

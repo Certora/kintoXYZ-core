@@ -2,6 +2,22 @@
 
 pragma solidity ^0.8.0;
 
+contract BytesLibMock {
+    struct VRS {
+        uint8 v;
+        bytes32 r;
+        bytes32 s;
+    }
+    /// Full signature hash => position => VRS
+    mapping(bytes32 => mapping(uint256 => VRS)) private _extractSig;
+
+    function extractSignature(bytes32 signatureHash, uint256 position) external view returns (bytes memory) {
+        VRS storage _vrs = _extractSig[signatureHash][position];
+        bytes memory sig = abi.encodePacked(_vrs.v,_vrs.r,_vrs.s);
+        return sig;
+    }
+}
+
 contract MockECDSA {
 
     mapping(bytes32 => mapping(bytes32 => address)) private _recover;

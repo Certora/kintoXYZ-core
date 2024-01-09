@@ -1,4 +1,5 @@
 using MockECDSA as MockECDSA;
+using BytesLibMock as BytesLibMock;
 
 methods {
     /// KintoWallet
@@ -19,6 +20,12 @@ methods {
     function ALL_SIGNERS() external returns (uint8) envfree;
     function MAX_SIGNERS() external returns (uint8) envfree;
     function KintoWallet._getAppContract(bytes calldata) internal returns (address) => NONDET;
+    
+
+    /// BytesSignature
+    function BytesLibMock.extractSignature(bytes32, uint256) external returns (bytes memory) envfree;
+    function ByteSignature.extractECDASignatureFromBytes(bytes memory fullSignature, uint position)
+        internal returns (bytes memory) => extractSigCVL(fullSignature, position);
 
     /// ECDSA
     function MockECDSA.recoverMock(bytes32, bytes) external returns (address) envfree;
@@ -47,16 +54,16 @@ definition isResetSigners(method f) returns bool =
 function isKYC_CVL(uint256 time, address account) returns bool {
     return _isKYC[time][account];
 }
-/// hashed message => signature hash => signer.
-persistent ghost mapping(bytes32 => mapping(bytes32 => address)) _recoverMap;
 /// Generic ghost function for function toEthSignedMessageHash(bytes32 hash)
 persistent ghost signedMessageHash(bytes32) returns bytes32;
 
 function recoverCVL(bytes32 hash, bytes signature) returns address {
-    /// First option: CVL mapping
-    //return _recoverMap[hash][keccak256(signature)];
-    /// Second option: use Solidity implemenation
     return MockECDSA.recoverMock(hash, signature);
+}
+
+function extractSigCVL(bytes fullSignature, uint position) returns bytes {
+    bytes32 signatureHash = keccak256(fullSignature);
+    return BytesLibMock.extractSignature(signatureHash, position);
 }
 
 function isOwner(address account) returns bool {

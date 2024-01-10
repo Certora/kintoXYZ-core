@@ -5,9 +5,11 @@ methods {
     function _.proxiableUUID() external => ERC1822ProxiableUUID(calledContract) expect bytes32;
 
     function owner() external returns (address) envfree;
+    function entryPoint() external returns (address) envfree;
     function balances(address) external returns (uint256) envfree;
     function contractSpent(address) external returns (uint256) envfree;
     function unlockBlock(address) external returns (uint256) envfree;
+    function MAX_COST_OF_USEROP() external returns (uint256) envfree;
 
     function rateLimit(address,address) external returns (uint256,uint256,uint256) envfree;
     function costLimit(address,address) external returns (uint256,uint256,uint256) envfree;

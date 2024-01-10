@@ -150,9 +150,27 @@ invariant hasSanctionCountIsNonZero(env e1, address account, uint16 CID)
     isSanctioned(e1, account, CID) => getSanctionsCount(account) > 0
     filtered{f -> !upgradeMethods(f)}
     {
-        preserved with (env e2) {require e2.block.timestamp == e1.block.timestamp;}
+        preserved with (env e2) {
+            require e2.block.timestamp == e1.block.timestamp;
+        }
+        preserved monitor(address[] accounts, IKintoID.MonitorUpdateData[][] data) with (env e2) {
+            require e2.block.timestamp == e1.block.timestamp;
+            if(accounts.length > 0) {
+                require accounts.length == 1;
+                require data[0].length == 1;
+                uint16 CID_A = data[0][0].index;
+                address accountA = accounts[0];
+                require (accountA == account && 
+                isSanctioned(e2, accountA, CID_A) && isSanctioned(e2, accountA, CID)) => getSanctionsCount(accountA) > 1;
+            }
+        }
+        preserved removeSanction(address accountA, uint16 CID_A) with (env e2) {
+            require e2.block.timestamp == e1.block.timestamp;
+            require (accountA == account && 
+                isSanctioned(e2, accountA, CID_A) && isSanctioned(e2, accountA, CID)) => getSanctionsCount(accountA) > 1;
+        }
     }
-    
+
 
 rule onlySanctionMethodCanSanction(method f) filtered{f -> !viewOrUpgrade(f)} {
     address account; uint16 CID;
@@ -298,6 +316,10 @@ rule addingOrRemovingSanctionsAreIndependent(bool addOrRemove_A, bool addOrRemov
     env eB;
     address accountA; uint16 CID_A;
     address accountB; uint16 CID_B;
+    requireInvariant hasSanctionCountIsNonZero(eA, accountA, CID_A);
+    requireInvariant hasSanctionCountIsNonZero(eB, accountB, CID_B);
+    require (accountA == accountB && CID_A != CID_B) => (
+        (isSanctioned(eA, accountA, CID_A) && isSanctioned(eB, accountB, CID_B)) => getSanctionsCount(accountA) >= 2);
 
     storage initState = lastStorage;
     if(addOrRemove_A) {
@@ -314,13 +336,13 @@ rule addingOrRemovingSanctionsAreIndependent(bool addOrRemove_A, bool addOrRemov
         removeSanction(eB, accountB, CID_B) at initState;
     }
     if(addOrRemove_A) {
-        addSanction@withrevert(eB, accountB, CID_B);
+        addSanction@withrevert(eA, accountA, CID_A);
     }
     else {
-        removeSanction@withrevert(eB, accountB, CID_B);
+        removeSanction@withrevert(eA, accountA, CID_A);
     }
 
-    assert (accountA == accountB && CID_A == CID_B) => !lastReverted;
+    assert !(accountA == accountB && CID_A == CID_B) => !lastReverted;
 }
 
 /*

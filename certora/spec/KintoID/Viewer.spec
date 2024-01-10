@@ -2,7 +2,7 @@ import "setup.spec";
 
 use invariant lastMonitoredAtInThePast filtered{f -> !upgradeMethods(f)}
 
-rule whichFunctionsChangeKYC(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
+rule whichFunctionsChange_isKYC(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
     env e1;
     env e2; calldataarg args;
     

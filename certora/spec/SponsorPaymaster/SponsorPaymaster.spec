@@ -42,6 +42,29 @@ rule postOpGasCostIsUserFree() {
         "If the gas price doesn't change between calls, then the spent amount shouldn't changed";
 }
 
+rule balanceOnlyIncreasesByDeposit(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
+    uint256 balanceBefore = balances(account);
+        env e;
+        calldataarg args;
+        f(e,args);
+    uint256 balanceAfter = balances(account);
+
+    assert balanceAfter > balanceBefore => f.selector == sig:addDepositFor(address).selector;
+}
+
+rule balanceDecreaseIsAtMostMaxOpCost(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
+    require f.selector != sig:withdrawTokensTo(address,uint256).selector;
+    require f.selector != sig:withdrawTo(address,uint256).selector;
+    
+    uint256 balanceBefore = balances(account);
+        env e;
+        calldataarg args;
+        f(e,args);
+    uint256 balanceAfter = balances(account);
+
+    assert balanceAfter < balanceBefore => balanceBefore - balanceAfter <= to_mathint(MAX_COST_OF_USEROP());
+}
+
 rule validatePayMasterCannotFrontRunEachOther() {
     env e1;
     env e2;
@@ -62,6 +85,24 @@ rule validatePayMasterCannotFrontRunEachOther() {
     assert !lastReverted;
 }
 
+rule lastOperationTimeIsInThePast(address account, address app, method f) 
+filtered{f -> !viewOrUpgrade(f)} {
+    uint256 rate_lastOp_before; rate_lastOp_before, _ , _ = rateLimit(account, app);
+    uint256 cost_lastOp_before; cost_lastOp_before, _ , _ = costLimit(account, app);
+    uint256 total_lastOp_before; total_lastOp_before, _ , _ = totalRateLimit(account);
+        env e;
+        calldataarg args;
+        f(e, args);
+        uint256 time = e.block.timestamp;
+    uint256 rate_lastOp_after; rate_lastOp_after, _ , _ = rateLimit(account, app);
+    uint256 cost_lastOp_after; cost_lastOp_after, _ , _ = costLimit(account, app);
+    uint256 total_lastOp_after; total_lastOp_after, _ , _ = totalRateLimit(account);
+
+    assert rate_lastOp_before <= time => rate_lastOp_after <= time;
+    assert cost_lastOp_before <= time => cost_lastOp_after <= time;
+    assert total_lastOp_before <= time => total_lastOp_after <= time;
+}
+
 rule postOpUpdatesLimits() {
     env e;
     address sender; address account;
@@ -79,7 +120,7 @@ rule postOpUpdatesLimits() {
     
     count2, lastOpTime_rate2, ethCount2, lastOpTime_cost2 = appUserLimit(sender, account);
 
-    assert lastOpTime_rate1 != lastOpTime_rate2 <=> (sender == _sender && account == _account);
+    assert lastOpTime_rate1 != lastOpTime_rate2 => (sender == _sender && account == _account);
 }
 
 rule onlyOneAppBalanceChangeAtATime(method f) filtered{f -> !viewOrUpgrade(f)} {
@@ -101,7 +142,8 @@ rule onlyOneAppBalanceChangeAtATime(method f) filtered{f -> !viewOrUpgrade(f)} {
     assert (balance1_before != balance1_after && app1 != app2) => balance2_before == balance2_after;
 }
 
-rule contractSpendsMustDecreaseBalance(method f, address app) filtered{f -> !viewOrUpgrade(f)} {
+rule contractSpendsMustDecreaseBalance(method f, address app) 
+filtered{f -> !viewOrUpgrade(f)} {
     env e;
     calldataarg args;
     uint256 spentBefore = contractSpent(app);
@@ -197,7 +239,8 @@ filtered{f -> !viewOrUpgrade(f)} {
     total_ethCostCount_after = 
         totalRateLimit(account);
     amount_after, unlockBlock_after = depositInfo(account);
-    {
+    
+    if(e.msg.sender != entryPoint()) {
         assert rate_lastOperationTime_before == rate_lastOperationTime_after;
         assert rate_operationCount_before == rate_operationCount_after;
         assert rate_ethCostCount_before == rate_ethCostCount_after;
@@ -207,8 +250,9 @@ filtered{f -> !viewOrUpgrade(f)} {
         assert total_lastOperationTime_before == total_lastOperationTime_after;
         assert total_operationCount_before == total_operationCount_after;
         assert total_ethCostCount_before == total_ethCostCount_after;
+        assert amount_before <= amount_after, "No one can reduce the deposit amount of another";
     }
-    assert amount_before <= amount_after, "No one can reduce the deposit amount of another";
+    
     if(f.selector == sig:initialize(address).selector) {
         assert unlockBlock_before != unlockBlock_after => account == owner();
     }

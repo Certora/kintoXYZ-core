@@ -20,7 +20,6 @@ methods {
     function ALL_SIGNERS() external returns (uint8) envfree;
     function MAX_SIGNERS() external returns (uint8) envfree;
     function KintoWallet._getAppContract(bytes calldata) internal returns (address) => randomAppContract();
-    
 
     /// BytesSignature
     function BytesLibMock.extractSignature(bytes32, uint256) external returns (bytes memory) envfree;

@@ -1,5 +1,5 @@
---- ../src/KintoID.sol	2024-01-03 10:03:36.284643085 +0200
-+++ 	2024-01-08 11:07:23.311804081 +0200
+--- ../src/KintoID.sol	2024-01-11 14:11:45.673358961 +0200
++++ 	2024-01-11 18:54:06.632582120 +0200
 @@ -36,7 +36,7 @@
  
      /* ============ State Variables ============ */
@@ -26,3 +26,15 @@
       * @dev Returns whether the account holder is KYCd
       * @param _account account to be checked.
       * @return true if the account has KYC token.
+--- ../src/wallet/KintoWalletFactory.sol	2024-01-11 18:54:35.503409326 +0200
++++ 	2024-01-11 18:55:54.380889497 +0200
+@@ -227,7 +227,8 @@
+      */
+     function getAddress(address owner, address recoverer, uint256 salt) public view override returns (address) {
+         return Create2.computeAddress(bytes32(salt), keccak256(abi.encodePacked(
+-                type(SafeBeaconProxy).creationCode,
++                /// Certora: temporary removal to solve reachability issue:
++                //type(SafeBeaconProxy).creationCode,
+                 abi.encode(
+                     address(beacon),
+                     abi.encodeCall(KintoWallet.initialize, (owner, recoverer))

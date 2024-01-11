@@ -9,7 +9,58 @@ invariant ZeroAddressApp()
     appSigner(0) == 0;
 
 invariant NumberOfOwnersIntegrity()
-    require_uint256(MAX_SIGNERS()) >= getOwnersCount() && getOwnersCount() > 0;
+    require_uint256(MAX_SIGNERS()) >= getOwnersCount()
+    {
+        preserved initialize(address anOwner, address recover) with (env e) {
+            /// Factory initializes right after deployment.
+            require getOwnersCount() == 0;
+        }
+    }
+
+invariant OwnerisNonZero()
+    getOwnersCount() > 0 => !isOwner(0)
+    {
+        preserved initialize(address owner, address recoverer) with (env eP) {
+            /// Guaranteed in KintoWalletFactory.createAccount():
+            /// require(kintoID.isKYC(owner), 'KYC required');
+            /// and on the invariant in KintoID: ZeroAddressNotKYC()
+            require owner !=0;
+        }
+    }
+
+invariant OwnerListIntegrity()
+    ( getOwnersCount() == 2 => (owners(0) != owners(1) && owners(1) !=0) ) &&
+    ( getOwnersCount() == 3 => (owners(0) != owners(1) && owners(0) != owners(2) && owners(1) != owners(2)) )
+    {
+        preserved {
+            requireInvariant NumberOfOwnersIntegrity();
+        }
+    }
+
+invariant SignerPolicyCannotExceedOwnerCount()
+    signerPolicy() == MINUS_ONE_SIGNER() => getOwnersCount() > 1
+    {
+        preserved {
+            requireInvariant AllowedSignerPolicy();
+            requireInvariant NumberOfOwnersIntegrity();
+        }
+    }
+
+invariant FirstOwnerIsKYC(env e)
+    (e.block.timestamp > 0 && getOwnersCount() > 0) => (
+        (inRecovery() == 0 => isKYC_CVL(e.block.timestamp, owners(0)))
+    )
+    {
+        preserved with (env eP) {
+            require eP.block.timestamp == e.block.timestamp;
+        }
+        preserved initialize(address owner, address recoverer) with (env eP) {
+            require eP.block.timestamp == e.block.timestamp;
+            /// Guaranteed in KintoWalletFactory.createAccount():
+            /// require(kintoID.isKYC(owner), 'KYC required');
+            require(isKYC_CVL(eP.block.timestamp, owner));
+        }
+    } 
 
 rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isView} {
     bool ownerBefore = isOwner(account);
@@ -39,6 +90,28 @@ rule finishRecoveryIntegrity() {
     assert owners(1) == signers[1];
     assert owners(2) == signers[2];
 }
+
+/// In-progress:
+rule cannotValidateTheSameOpTwice(KintoWallet.UserOperation userOp) {
+    env e1;
+    env e2;
+    require e1.msg.sender == e2.msg.sender;
+    require e1.msg.value == e2.msg.value;
+    require isKYC_CVL(e1.block.timestamp, owners(0)) == isKYC_CVL(e2.block.timestamp, owners(0));
+    
+    bytes32 userOpHash1; uint256 missingAccountFunds1;
+    bytes32 userOpHash2; uint256 missingAccountFunds2;
+    
+    uint256 data1 = validateUserOp(e1, userOp, userOpHash1, missingAccountFunds1);
+    uint256 data2 = validateUserOp@withrevert(e2, userOp, userOpHash2, missingAccountFunds2);
+
+    if(userOpHash1 == userOpHash2 && missingAccountFunds1 == missingAccountFunds2) {
+        assert !lastReverted;
+        assert data1 == data2;
+    }
+    assert true;
+}
+
 
 rule entryPointPriviligedFunctions(method f) 
 filtered{f -> !f.isView} {

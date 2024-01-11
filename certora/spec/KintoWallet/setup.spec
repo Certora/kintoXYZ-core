@@ -9,17 +9,17 @@ methods {
     function isTokenApproved(address,address) external returns (uint256) envfree;
     function owners(uint256) external returns (address) envfree;
     function recoverer() external returns (address) envfree;
+    function inRecovery() external returns (uint256) envfree;
     function funderWhitelist(address) external returns (bool) envfree;
     function appSigner(address) external returns (address) envfree;
     function appWhitelist(address) external returns (bool) envfree;
     function getOwnersCount() external returns (uint) envfree;
     function signerPolicy() external returns (uint8) envfree;
-    function recoverer() external returns (address) envfree;
     function SINGLE_SIGNER() external returns (uint8) envfree;
     function MINUS_ONE_SIGNER() external returns (uint8) envfree;
     function ALL_SIGNERS() external returns (uint8) envfree;
     function MAX_SIGNERS() external returns (uint8) envfree;
-    function KintoWallet._getAppContract(bytes calldata) internal returns (address) => NONDET;
+    function KintoWallet._getAppContract(bytes calldata) internal returns (address) => randomAppContract();
     
 
     /// BytesSignature
@@ -40,6 +40,7 @@ methods {
 }
 
 definition senderIsSelf(env e) returns bool = e.msg.sender == currentContract;
+definition MAX_ADDRESS() returns address = 0xffffffffffffffffffffffffffffffffffffffff;
 
 definition entryPointPriviliged(method f) returns bool = 
     f.selector == sig:execute(address,uint256,bytes).selector ||
@@ -74,4 +75,17 @@ function isOwner(address account) returns bool {
     return false;
 }
 
-persistent ghost mapping(uint256 => mapping(address => bool)) _isKYC;
+persistent ghost mapping(uint256 => mapping(address => bool)) _isKYC {
+    /// Based on the invariant in KintoID: ZeroAddressNotKYC()
+    axiom forall uint256 time. !_isKYC[time][0];
+}
+
+/// A random (NONDET) summary for _getAppContract(bytes callData) that stores the output in a ghost variable.
+/// The ghost address could be later fetched outside the call to validateUserOp().
+ghost address ghostAppContract;
+
+function randomAppContract() returns address {
+    address _arbAppContract; 
+    ghostAppContract = _arbAppContract;
+    return ghostAppContract;
+}

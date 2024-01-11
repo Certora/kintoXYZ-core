@@ -9,6 +9,7 @@ use invariant TokenAtIndexConsistency filtered{f -> !upgradeMethods(f)}
 use invariant TokenBalanceIsZeroOrOne filtered{f -> !upgradeMethods(f)}
 use invariant BalanceOfZero filtered{f -> !upgradeMethods(f)}
 use invariant IsOwnedInTokensArray filtered{f -> !upgradeMethods(f)}
+use invariant ZeroAddressNotKYC filtered{f -> !upgradeMethods(f)}
 
 methods {
     function isSanctioned(address, uint16) external returns (bool);

@@ -80,6 +80,15 @@ invariant TokenBalanceIsZeroOrOne(address account)
 invariant BalanceOfZero()
     balanceOf(0) == 0;
 
+invariant ZeroAddressNotKYC(env e)
+    !viewer.isKYC(e,0)
+    {
+        preserved with (env eP) {
+            requireInvariant ZeroAddressNotKYC(eP);
+            requireInvariant BalanceOfZero();
+        }
+    }
+
 invariant IsOwnedInTokensArray(uint256 tokenID)
     ownerOf(tokenID) !=0 => totalSupply() > 0
     filtered{f -> !upgradeMethods(f)}

@@ -62,6 +62,9 @@ function recoverCVL(bytes32 hash, bytes signature) returns address {
 }
 
 function extractSigCVL(bytes fullSignature, uint position) returns bytes {
+    /// Only one signature - no need to extract.
+    if(fullSignature.length == 65) return fullSignature;
+    /// Multiple signatures - use extract mock.
     bytes32 signatureHash = keccak256(fullSignature);
     return BytesLibMock.extractSignature(signatureHash, position);
 }

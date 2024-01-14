@@ -1,4 +1,5 @@
 import "setup.spec";
+import "../Initializable.spec";
 
 invariant AllowedSignerPolicy()
     signerPolicy() == SINGLE_SIGNER() ||
@@ -9,9 +10,9 @@ invariant ZeroAddressApp()
     appSigner(0) == 0;
 
 invariant NumberOfOwnersIntegrity()
-    require_uint256(MAX_SIGNERS()) >= getOwnersCount()
+    assert_uint256(MAX_SIGNERS()) >= getOwnersCount()
     {
-        preserved initialize(address anOwner, address recover) with (env e) {
+        preserved initialize(address owner, address recoverer) with (env e) {
             /// Factory initializes right after deployment.
             require getOwnersCount() == 0;
         }
@@ -28,7 +29,7 @@ invariant OwnerisNonZero()
         }
     }
 
-invariant OwnerListIntegrity()
+invariant OwnerListNoDuplicates()
     ( getOwnersCount() == 2 => (owners(0) != owners(1) && owners(1) !=0) ) &&
     ( getOwnersCount() == 3 => (owners(0) != owners(1) && owners(0) != owners(2) && owners(1) != owners(2)) )
     {
@@ -38,18 +39,28 @@ invariant OwnerListIntegrity()
     }
 
 invariant SignerPolicyCannotExceedOwnerCount()
-    signerPolicy() == MINUS_ONE_SIGNER() => getOwnersCount() > 1
+    (initialized != MAX_VERSION()) => (
+    (signerPolicy() == SINGLE_SIGNER() => getOwnersCount() >= 1) &&
+    (signerPolicy() == MINUS_ONE_SIGNER() => getOwnersCount() > 1) &&
+    (signerPolicy() == ALL_SIGNERS() => getOwnersCount() == assert_uint256(MAX_SIGNERS())))
     {
         preserved {
             requireInvariant AllowedSignerPolicy();
             requireInvariant NumberOfOwnersIntegrity();
         }
+        preserved execute(address A, uint256 B, bytes C) with (env e) {
+            require initialized != MAX_VERSION();
+        }
+        preserved executeBatch(address[] A, uint256[] B, bytes[] C) with (env e) {
+            require initialized != MAX_VERSION();
+        }
     }
 
 invariant FirstOwnerIsKYC(env e)
-    (e.block.timestamp > 0 && getOwnersCount() > 0) => (
-        (inRecovery() == 0 => isKYC_CVL(e.block.timestamp, owners(0)))
-    )
+    (e.block.timestamp > 0 && getOwnersCount() > 0) => isKYC_CVL(e.block.timestamp, owners(0))
+    /// We assume that when finishing recovery the new owner has already been minted KYC by the providers.
+    /// Also, see rule 'firstOwnerIsChangedOnlyByRecovery'.
+    filtered{f -> f.selector != sig:finishRecovery(address[]).selector}
     {
         preserved with (env eP) {
             require eP.block.timestamp == e.block.timestamp;
@@ -91,25 +102,31 @@ rule finishRecoveryIntegrity() {
     assert owners(2) == signers[2];
 }
 
-/// In-progress:
-rule cannotValidateTheSameOpTwice(KintoWallet.UserOperation userOp) {
-    env e1;
-    env e2;
-    require e1.msg.sender == e2.msg.sender;
-    require e1.msg.value == e2.msg.value;
-    require isKYC_CVL(e1.block.timestamp, owners(0)) == isKYC_CVL(e2.block.timestamp, owners(0));
-    
-    bytes32 userOpHash1; uint256 missingAccountFunds1;
-    bytes32 userOpHash2; uint256 missingAccountFunds2;
-    
-    uint256 data1 = validateUserOp(e1, userOp, userOpHash1, missingAccountFunds1);
-    uint256 data2 = validateUserOp@withrevert(e2, userOp, userOpHash2, missingAccountFunds2);
+/// If the validation succeeds, the signer's identity must correct (owner or app signer).
+rule validationSignerIntegrity() {
+    env e;
+    requireInvariant NumberOfOwnersIntegrity();
+    requireInvariant OwnerisNonZero();
+    requireInvariant SignerPolicyCannotExceedOwnerCount();
+    require initialized != MAX_VERSION();
 
-    if(userOpHash1 == userOpHash2 && missingAccountFunds1 == missingAccountFunds2) {
-        assert !lastReverted;
-        assert data1 == data2;
-    }
-    assert true;
+    KintoWallet.UserOperation userOp;
+    bytes32 userOpHash;
+    uint256 missingAccountFunds;
+    uint256 validationData = validateUserOp(e, userOp, userOpHash, missingAccountFunds);
+    /// Assuming the validation succeeded:
+    require validationData == 0;
+    /// App from userOp:
+    address app = ghostAppContract;
+    /// userOp hash + Eth signature hash:
+    bytes32 hash = signedMessageHash(userOpHash);
+    /// Hash message signer:
+    address signer = recoverCVL(hash, userOp.signature);
+    
+    bool appHasSigner = (app !=0 && appSigner(app) !=0);
+
+    assert !appHasSigner => isOwner(signer), "Owner must be signer of wallet transaction";
+    assert appHasSigner => appSigner(app) == signer, "App signer must sign for app transaction";
 }
 
 

@@ -24,7 +24,7 @@ invariant OwnerisNonZero()
         preserved initialize(address owner, address recoverer) with (env eP) {
             /// Guaranteed in KintoWalletFactory.createAccount():
             /// require(kintoID.isKYC(owner), 'KYC required');
-            /// and on the invariant in KintoID: ZeroAddressNotKYC()
+            /// and by the invariant in KintoID: ZeroAddressNotKYC()
             require owner !=0;
         }
     }
@@ -40,9 +40,10 @@ invariant OwnerListNoDuplicates()
 
 invariant SignerPolicyCannotExceedOwnerCount()
     (initialized != MAX_VERSION()) => (
-    (signerPolicy() == SINGLE_SIGNER() => getOwnersCount() >= 1) &&
-    (signerPolicy() == MINUS_ONE_SIGNER() => getOwnersCount() > 1) &&
-    (signerPolicy() == ALL_SIGNERS() => getOwnersCount() == assert_uint256(MAX_SIGNERS())))
+        (signerPolicy() == SINGLE_SIGNER() => getOwnersCount() >= 1) &&
+        (signerPolicy() == MINUS_ONE_SIGNER() => getOwnersCount() > 1) &&
+        (signerPolicy() == ALL_SIGNERS() => getOwnersCount() >= 1)
+    )
     {
         preserved {
             requireInvariant AllowedSignerPolicy();
@@ -107,6 +108,7 @@ rule validationSignerIntegrity() {
     env e;
     requireInvariant NumberOfOwnersIntegrity();
     requireInvariant OwnerisNonZero();
+    requireInvariant ZeroAddressApp();
     requireInvariant SignerPolicyCannotExceedOwnerCount();
     require initialized != MAX_VERSION();
 
@@ -129,6 +131,74 @@ rule validationSignerIntegrity() {
     assert appHasSigner => appSigner(app) == signer, "App signer must sign for app transaction";
 }
 
+rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
+    /// Require invariants:
+    requireInvariant NumberOfOwnersIntegrity();
+    requireInvariant OwnerisNonZero();
+    requireInvariant SignerPolicyCannotExceedOwnerCount();
+    requireInvariant OwnerListNoDuplicates();
+    requireInvariant AllowedSignerPolicy();
+    requireInvariant ZeroAddressApp();
+    /// Set rule parameters:
+    require ownersCount == getOwnersCount();
+    require policy == signerPolicy();
+    
+    env e;
+    KintoWallet.UserOperation userOp;
+    bytes32 userOpHash;
+    uint256 missingAccountFunds;
+    uint256 validationData = validateUserOp(e, userOp, userOpHash, missingAccountFunds);
+    /// Assume success:
+    require validationData == 0;
+    /// Assume signers (non-app) validation:
+    require !(ghostAppContract !=0 && appSigner(ghostAppContract) !=0);
+
+    /// Get hash message signers:
+    uint256 signaturesLength = userOp.signature.length;
+    bytes32 hash = signedMessageHash(userOpHash);
+    /// Check if signers are wallet owners:
+    bool isOwner_0 = isOwner(recoverCVL(hash, extractSigCVL(userOp.signature, 0)));
+    bool isOwner_1 = isOwner(recoverCVL(hash, extractSigCVL(userOp.signature, 1)));
+    bool isOwner_2 = isOwner(recoverCVL(hash, extractSigCVL(userOp.signature, 2)));
+
+    if(policy == SINGLE_SIGNER()) {
+        assert userOp.signature.length == 65;
+        if(ownersCount == 1) {
+            assert isOwner_0;
+        }
+        else if(ownersCount == 2) {
+            assert isOwner_0 || isOwner_1;
+        }
+        else {
+            assert isOwner_0 || isOwner_1 || isOwner_2;
+        }
+    }
+    else if(policy == MINUS_ONE_SIGNER()) {
+        assert signaturesLength == require_uint256(65 * (ownersCount - 1));
+        if(ownersCount == 1) {
+            assert false;
+        }
+        else if(ownersCount == 2) {
+            assert isOwner_0 || isOwner_1;
+        }
+        else {
+            assert (isOwner_0 && isOwner_1) || (isOwner_1 && isOwner_2)  || (isOwner_0 && isOwner_2);
+        }
+    }
+    else if(policy == ALL_SIGNERS()) {
+        assert signaturesLength == require_uint256(65 * ownersCount);
+        if(ownersCount == 1) {
+            assert isOwner_0;
+        }
+        else if(ownersCount == 2) {
+            assert isOwner_0 && isOwner_1;
+        }
+        else {
+            assert isOwner_0 && isOwner_1 && isOwner_2;
+        }
+    }
+    assert true;
+}
 
 rule entryPointPriviligedFunctions(method f) 
 filtered{f -> !f.isView} {

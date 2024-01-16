@@ -23,6 +23,31 @@ methods {
     function viewer.isIndividual(address _account) external returns (bool) envfree;
 }
 
+/*
+┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
+│ Ghost & hooks: sanctions meta data                                                                                 │
+└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
+*/
+/// Maximum number of sanctions (assumed).
+definition MAX_SANCTIONS() returns uint8 = 200;
+
+ghost mapping(address => uint8) _sanctionsCount {
+    axiom forall address account. _sanctionsCount[account] <= MAX_SANCTIONS();
+}
+
+hook Sload uint8 count _kycmetas[KEY address account].sanctionsCount STORAGE {
+    require _sanctionsCount[account] == count;
+}
+
+hook Sstore _kycmetas[KEY address account].sanctionsCount uint8 count (uint8 count_old) STORAGE {
+    require _sanctionsCount[account] == count_old;
+    _sanctionsCount[account] = count;
+}
+
+function getSanctionsCount(address account) returns uint8 {
+    return _sanctionsCount[account];
+}
+
 ghost ERC1822ProxiableUUID(address) returns bytes32;
 
 definition transferMethods(method f) returns bool = 

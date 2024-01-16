@@ -17,31 +17,6 @@ methods {
 
 /*
 ┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
-│ Ghost & hooks: sanctions meta data                                                                                 │
-└─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
-*/
-/// Maximum number of sanctions (assumed).
-definition MAX_SANCTIONS() returns uint8 = 200;
-
-ghost mapping(address => uint8) _sanctionsCount {
-    axiom forall address account. _sanctionsCount[account] <= MAX_SANCTIONS();
-}
-
-hook Sload uint8 count _kycmetas[KEY address account].sanctionsCount STORAGE {
-    require _sanctionsCount[account] == count;
-}
-
-hook Sstore _kycmetas[KEY address account].sanctionsCount uint8 count (uint8 count_old) STORAGE {
-    require _sanctionsCount[account] == count_old;
-    _sanctionsCount[account] = count;
-}
-
-function getSanctionsCount(address account) returns uint8 {
-    return _sanctionsCount[account];
-}
-
-/*
-┌─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┐
 │ Rules: ERC721                                                                                                    │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
@@ -162,7 +137,7 @@ invariant hasSanctionCountIsNonZero(env e1, address account, uint16 CID)
             require e2.block.timestamp == e1.block.timestamp;
         }
         preserved monitor(address[] accounts, IKintoID.MonitorUpdateData[][] data) with (env e2) {
-            require e2.block.timestamp == e1.block.timestamp;
+            require e2.block.tPimestamp == e1.block.timestamp;
             if(accounts.length > 0) {
                 require accounts.length == 1;
                 require data[0].length == 1;

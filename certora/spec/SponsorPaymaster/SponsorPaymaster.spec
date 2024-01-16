@@ -4,6 +4,7 @@ import "../Initializable.spec";
 use rule cannotInitializeIfDisabled;
 use invariant initializingIsDisabled filtered{f -> !upgradeMethods(f)}
 
+/// @title The sum of user balances is covered by the EntryPoint deposit of the Paymaster.
 invariant PaymasterEthSolvency()
     to_mathint(getDeposit()) >= sumOfUserBalances
     filtered{f -> !upgradeMethods(f)}
@@ -14,6 +15,8 @@ invariant PaymasterEthSolvency()
         }
     }
 
+/// @title The gas cost post-op cannot depend on the user address.
+/// The contract spent can only change for the post-op context account.
 rule postOpGasCostIsUserFree() {
     env e;
     IPaymaster.PostOpMode modeA;
@@ -42,6 +45,7 @@ rule postOpGasCostIsUserFree() {
         "If the gas price doesn't change between calls, then the spent amount shouldn't changed";
 }
 
+/// @title The balance of any account can only increase by addDepositFor().
 rule balanceOnlyIncreasesByDeposit(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
     uint256 balanceBefore = balances(account);
         env e;
@@ -80,6 +84,7 @@ rule balanceOnlyIncreasesByDeposit(address account, method f) filtered{f -> !vie
     assert lastReverted <=> e1.block.number == e3.block.number;
 } */
 
+/// @title The balance of any account can decrease at most by the MAX_COST_OF_USEROP().
 rule balanceDecreaseIsAtMostMaxOpCost(address account, method f) 
 filtered{f -> !viewOrUpgrade(f) &&
     f.selector != sig:withdrawTokensTo(address,uint256).selector &&
@@ -94,6 +99,7 @@ filtered{f -> !viewOrUpgrade(f) &&
     assert balanceAfter < balanceBefore => balanceBefore - balanceAfter <= to_mathint(MAX_COST_OF_USEROP());
 }
 
+/// @title No operation can front-run validatePaymasterUserOp() and make it revert.
 rule noOperationFrontRunsValidate(method f) 
 filtered{f -> !f.isView && !(f.selector == 
     sig:validatePaymasterUserOp(SponsorPaymaster.UserOperation,bytes32,uint256).selector)} {
@@ -111,6 +117,7 @@ filtered{f -> !f.isView && !(f.selector ==
     assert !lastReverted;
 }
 
+/// @title No operation can change the context output of validatePaymasterUserOp(). 
 rule validationContextIsConsistent(method f) 
 filtered{f -> !f.isView && f.selector != 
     sig:validatePaymasterUserOp(SponsorPaymaster.UserOperation,bytes32,uint256).selector} {
@@ -136,6 +143,7 @@ filtered{f -> !f.isView && f.selector !=
         gasPricePostOp1 == gasPricePostOp2, "No operation should alter the validation context";
 }
 
+/// @title A call validatePaymasterUserOp() can never front-run another call to the same function and make it revert.
 rule validatePayMasterCannotFrontRunEachOther() {
     env e1;
     env e2;
@@ -156,6 +164,7 @@ rule validatePayMasterCannotFrontRunEachOther() {
     assert !lastReverted;
 }
 
+/// @title The rate, cost and total rate limits last operation time is never in the future.
 rule lastOperationTimeIsInThePast(address account, address app, method f) 
 filtered{f -> !viewOrUpgrade(f)} {
     uint256 rate_lastOp_before; rate_lastOp_before, _ , _ = rateLimit(account, app);
@@ -174,6 +183,7 @@ filtered{f -> !viewOrUpgrade(f)} {
     assert total_lastOp_before <= time => total_lastOp_after <= time;
 }
 
+/// @title The postOp() changes the user limits of the op input context (account and sender) only.
 rule postOpUpdatesLimits() {
     env e;
     address sender; address account;
@@ -194,6 +204,7 @@ rule postOpUpdatesLimits() {
     assert lastOpTime_rate1 != lastOpTime_rate2 => (sender == _sender && account == _account);
 }
 
+/// @title Any operation may change the contract spent amount and balance for one app at a time.
 rule onlyOneAppBalanceChangeAtATime(method f) filtered{f -> !viewOrUpgrade(f)} {
     env e;
     calldataarg args;
@@ -213,7 +224,8 @@ rule onlyOneAppBalanceChangeAtATime(method f) filtered{f -> !viewOrUpgrade(f)} {
     assert (balance1_before != balance1_after && app1 != app2) => balance2_before == balance2_after;
 }
 
-rule contractSpendsMustDecreaseBalance(method f, address app) 
+/// @title The contract spent amount cannot decrease, and must increase by the same amount the balance of that contract decreases.
+rule contractSpentMustDecreaseBalance(method f, address app) 
 filtered{f -> !viewOrUpgrade(f)} {
     env e;
     calldataarg args;
@@ -229,6 +241,7 @@ filtered{f -> !viewOrUpgrade(f)} {
         "The spent amount must be reducted from the app balance";
 }
 
+/// @title No operation can front-run and make a call to withdrawTokensTo() revert.
 rule cannotDos_withdrawTokensTo(method f) 
 filtered{f -> !viewOrUpgrade(f)} {
     env e1;
@@ -252,6 +265,7 @@ filtered{f -> !viewOrUpgrade(f)} {
     assert !lastReverted;
 }
 
+/// @title Only the user (or the EntryPoint) can change his own limits.
 rule onlyUserCanChangeHisParameters(address account, method f) 
 filtered{f -> !viewOrUpgrade(f)} {
     address app;

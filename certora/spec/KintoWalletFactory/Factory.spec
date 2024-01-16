@@ -37,6 +37,7 @@ persistent ghost mapping(uint256 => mapping(address => bool)) _isKYC {
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 
+/// @title The address of the contract created by createAccount() must match the value of getAddress() with the same parameters.
 rule createAccountCorrectAddress() {
     env e;
     require e.block.timestamp > 0;
@@ -47,6 +48,7 @@ rule createAccountCorrectAddress() {
     assert salt1 == salt2 <=> walletCreated == walletAddress;
 }
 
+/// @title getAddress() function is injective with respect to the owner, recoverer and salt values.
 rule getAddressInjectivity() {
     env e;
     require e.block.timestamp > 0;
@@ -61,6 +63,7 @@ rule getAddressInjectivity() {
     assert salt1 != salt2 => walletAddress1 != walletAddress2;
 }
 
+/// @title Once a wallet is active (timestamp > 0), it never becomes inactive (timestamp = 0).
 rule onceActiveAlwaysActive(address wallet, method f) filtered{f -> !f.isView} {
     bool isActive_before = isWalletActive(wallet);
         env e;
@@ -72,6 +75,7 @@ rule onceActiveAlwaysActive(address wallet, method f) filtered{f -> !f.isView} {
     assert isActive_before => isActive_after;
 }
 
+/// @title A wallet could only become active (created) for an owner who is KYCd.
 rule createWalletForKYCdOnly(address wallet) {
     bool isActive_before = isWalletActive(wallet);
         env e;
@@ -83,6 +87,7 @@ rule createWalletForKYCdOnly(address wallet) {
     assert (!isActive_before && isActive_after) => isKYC_CVL(e.block.timestamp, owner);
 }
 
+/// @title The zero address is never a wallet owner or wallet recoverer.
 rule ZeroAddressIsNotWalletOwnerOrRecoverer() {
     env e;
     address owner; 

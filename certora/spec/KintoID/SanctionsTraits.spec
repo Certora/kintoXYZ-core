@@ -137,19 +137,19 @@ invariant hasSanctionCountIsNonZero(env e1, address account, uint16 CID)
             require e2.block.timestamp == e1.block.timestamp;
         }
         preserved monitor(address[] accounts, IKintoID.MonitorUpdateData[][] data) with (env e2) {
-            require e2.block.tPimestamp == e1.block.timestamp;
+            require e2.block.timestamp == e1.block.timestamp;
             if(accounts.length > 0) {
                 require accounts.length == 1;
                 require data[0].length == 1;
                 uint16 CID_A = data[0][0].index;
                 address accountA = accounts[0];
-                require (accountA == account && 
+                require (accountA == account && CID_A != CID &&
                 isSanctioned(e2, accountA, CID_A) && isSanctioned(e2, accountA, CID)) => getSanctionsCount(accountA) > 1;
             }
         }
         preserved removeSanction(address accountA, uint16 CID_A) with (env e2) {
             require e2.block.timestamp == e1.block.timestamp;
-            require (accountA == account && 
+            require (accountA == account  && CID_A != CID &&
                 isSanctioned(e2, accountA, CID_A) && isSanctioned(e2, accountA, CID)) => getSanctionsCount(accountA) > 1;
         }
     }

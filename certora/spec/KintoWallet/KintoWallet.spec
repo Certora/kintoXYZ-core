@@ -84,6 +84,8 @@ invariant FirstOwnerIsKYC(env e)
 
 /// @title Only the resetSigners() and finishRecovery() functions can remove an owner().
 rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isView} {
+    requireInvariant NumberOfOwnersIntegrity();
+
     bool ownerBefore = isOwner(account);
         env e;
         calldataarg args;
@@ -115,7 +117,7 @@ rule finishRecoveryIntegrity() {
 }
 
 /// @title If the validation succeeds, the signer's identity must correct (owner or app signer).
-/// @notice: in-progress
+/// @notice: in-progress - must refine the app-signature expected behavior.
 rule validationSignerIntegrity() {
     env e;
     requireInvariant NumberOfOwnersIntegrity();
@@ -137,13 +139,14 @@ rule validationSignerIntegrity() {
     /// Hash message signer:
     address signer = recoverCVL(hash, userOp.signature);
     
-    bool appHasSigner = (app !=0 && appSigner(app) !=0);
+    bool appHasSigner = (appSigner(app) !=0 && appWhitelist(app));
 
     assert !appHasSigner => isOwner(signer), "Owner must be signer of wallet transaction";
     assert appHasSigner => appSigner(app) == signer, "App signer must sign for app transaction";
 }
 
 /// @title If the validation succeeds, then all relevant signers (according to policy) must be owners.
+/// @notice: fails because of tool bytes-inconsistency.
 rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
     /// Require invariants:
     requireInvariant NumberOfOwnersIntegrity();
@@ -164,7 +167,7 @@ rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
     /// Assume success:
     require validationData == 0;
     /// Assume signers (non-app) validation:
-    require !(ghostAppContract !=0 && appSigner(ghostAppContract) !=0);
+    require !(appSigner(ghostAppContract) !=0 && appWhitelist(ghostAppContract));
 
     /// Get hash message signers:
     uint256 signaturesLength = userOp.signature.length;
@@ -215,11 +218,11 @@ rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
 
 /// @title execute(), executeBatch() and validateUserOp() are only called by the EntryPoint.
 rule entryPointPriviligedFunctions(method f) 
-filtered{f -> !f.isView} {
+filtered{f -> entryPointPriviliged(f)} {
     env e;
     calldataarg args;
     f(e, args);
-    assert entryPointPriviliged(f) => e.msg.sender == entryPoint();
+    assert e.msg.sender == entryPoint();
 }
 
 /// @title Only the contract can change the app white list and by calling setAppWhitelist().

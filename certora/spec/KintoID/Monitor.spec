@@ -1,4 +1,5 @@
 import "setup.spec";
+use invariant lastMonitoredAtInThePast;
 
 /// @title The monitor() function is commutative with respect to update data, if the IDs are different (for a single account).  
 rule monitorSanctionsCommutative(address account) {
@@ -84,15 +85,23 @@ rule monitorAccountsCommutative(address account1, address account2) {
 /// @title The monitor() function cannot front-run and cause a subsequent call to monitor() revert, for a single account.
 rule monitorSanctionsCannotFrontRun(address account) {
     address[] accounts = [account];
+    env e1;
+    env e2;
+    require e1.block.timestamp >= e2.block.timestamp;
+    require e2.block.timestamp > 0;
+    requireInvariant lastMonitoredAtInThePast(e1);
+    requireInvariant lastMonitoredAtInThePast(e2);
     
     IKintoID.MonitorUpdateData data1;
     IKintoID.MonitorUpdateData data2;
     IKintoID.MonitorUpdateData[][] traits1 = [[data1]];
     IKintoID.MonitorUpdateData[][] traits2 = [[data2]];
 
-    env e1;
-    env e2;
-    require e1.block.timestamp >= e2.block.timestamp;
+    uint16 CID1 = data1.index;
+    uint16 CID2 = data2.index;
+    require (CID1 != CID2) => (
+        (isSanctioned(e1, account, CID1) && isSanctioned(e2, account, CID2)) => getSanctionsCount(account) >= 2
+    );
 
     storage initState = lastStorage;
     monitor(e1, accounts, traits1) at initState;

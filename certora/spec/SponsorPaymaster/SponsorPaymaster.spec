@@ -52,10 +52,39 @@ rule balanceOnlyIncreasesByDeposit(address account, method f) filtered{f -> !vie
     assert balanceAfter > balanceBefore => f.selector == sig:addDepositFor(address).selector;
 }
 
-rule balanceDecreaseIsAtMostMaxOpCost(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
-    require f.selector != sig:withdrawTokensTo(address,uint256).selector;
-    require f.selector != sig:withdrawTo(address,uint256).selector;
+/*rule canStakeAndWithdrawIfTimeElapses() {
+    env e1;
+    env e2;
+    env e3;
+    require e1.msg.sender == e2.msg.sender;
+    require e3.msg.sender == e2.msg.sender;
+    require e2.block.number >= e1.block.number;
+    require e3.block.number >= e2.block.number;
+    require e2.block.number == e2.block.number;
+    require e1.block.number !=0;
+
+    initializeSumOfBalances();
+    requireInvariant PaymasterEthSolvency();
+    require getDeposit() + nativeBalances[e2.msg.sender] <= max_uint;
+    storage initState = lastStorage;
     
+    address account = e2.msg.sender;
+    uint256 amount = e1.msg.value;
+    address target;
+    withdrawTokensTo(e3, target, 0) at initState;
+
+    addDepositFor(e1, account) at initState;
+    unlockTokenDeposit(e2);
+    withdrawTokensTo@withrevert(e3, target, amount);
+
+    assert lastReverted <=> e1.block.number == e3.block.number;
+} */
+
+rule balanceDecreaseIsAtMostMaxOpCost(address account, method f) 
+filtered{f -> !viewOrUpgrade(f) &&
+    f.selector != sig:withdrawTokensTo(address,uint256).selector &&
+    f.selector != sig:withdrawTo(address,uint256).selector} 
+{    
     uint256 balanceBefore = balances(account);
         env e;
         calldataarg args;
@@ -63,6 +92,48 @@ rule balanceDecreaseIsAtMostMaxOpCost(address account, method f) filtered{f -> !
     uint256 balanceAfter = balances(account);
 
     assert balanceAfter < balanceBefore => balanceBefore - balanceAfter <= to_mathint(MAX_COST_OF_USEROP());
+}
+
+rule noOperationFrontRunsValidate(method f) 
+filtered{f -> !f.isView && !(f.selector == 
+    sig:validatePaymasterUserOp(SponsorPaymaster.UserOperation,bytes32,uint256).selector)} {
+    
+    env e1; calldataarg args1;
+    env e2; calldataarg args2;
+    //require e1.msg.sender != e2.msg.sender;
+    storage initState = lastStorage;
+
+    validatePaymasterUserOp(e1, args1) at initState;
+
+    f(e2, args2) at initState;
+    validatePaymasterUserOp@withrevert(e1, args1);
+
+    assert !lastReverted;
+}
+
+rule validationContextIsConsistent(method f) 
+filtered{f -> !f.isView && f.selector != 
+    sig:validatePaymasterUserOp(SponsorPaymaster.UserOperation,bytes32,uint256).selector} {
+    env e1; calldataarg args1;
+    env e2; calldataarg args2;
+    //require e1.msg.sender != e2.msg.sender;
+    storage initState = lastStorage;
+    bytes context1; uint256 data1;
+    bytes context2; uint256 data2;
+
+    context1, data1 = validatePaymasterUserOp(e1, args1) at initState;
+    address account1; address userAccount1; uint256 gasPricePostOp1;
+    account1, userAccount1, gasPricePostOp1 = contextDecode(context1);
+
+    f(e2, args2) at initState;
+    context2, data2 = validatePaymasterUserOp(e1, args1);
+    address account2; address userAccount2; uint256 gasPricePostOp2;
+    account2, userAccount2, gasPricePostOp2 = contextDecode(context2);
+
+    assert data1 == data2, "No operation should alter the validation data";
+    assert account1 == account2 && 
+        userAccount1 == userAccount2 && 
+        gasPricePostOp1 == gasPricePostOp2, "No operation should alter the validation context";
 }
 
 rule validatePayMasterCannotFrontRunEachOther() {

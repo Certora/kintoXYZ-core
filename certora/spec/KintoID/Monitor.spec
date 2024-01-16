@@ -1,5 +1,6 @@
 import "setup.spec";
 
+/// @title The monitor() function is commutative with respect to update data, if the IDs are different (for a single account).  
 rule monitorSanctionsCommutative(address account) {
     address[] accounts = [account];
     IKintoID.MonitorUpdateData data1;
@@ -18,6 +19,7 @@ rule monitorSanctionsCommutative(address account) {
     assert (data1.index & 0xff != data2.index & 0xff) => state1[currentContract] == state2[currentContract];
 }
 
+/// @title The monitor() function is associative with respect to the updated data (for a single account).
 rule monitorSanctionsAssociative(address account) {
     address[] accounts = [account];
     IKintoID.MonitorUpdateData data1;
@@ -38,6 +40,7 @@ rule monitorSanctionsAssociative(address account) {
     assert state1[currentContract] == state2[currentContract];
 }
 
+/// @title The monitor() function is associative with respect to the accounts list (for any data).
 rule monitorAccountsAssociative(address account1, address account2) {
     address[] accounts1 = [account1];
     address[] accounts2 = [account2];
@@ -60,6 +63,7 @@ rule monitorAccountsAssociative(address account1, address account2) {
     assert state1[currentContract] == state2[currentContract];
 }
 
+/// @title The monitor() function is commutative with respect to the accounts list (for a single type of data).
 rule monitorAccountsCommutative(address account1, address account2) {
     address[] accounts1 = [account1, account2];
     address[] accounts2 = [account2, account1];
@@ -77,6 +81,7 @@ rule monitorAccountsCommutative(address account1, address account2) {
     assert state1[currentContract] == state2[currentContract];
 }
 
+/// @title The monitor() function cannot front-run and cause a subsequent call to monitor() revert, for a single account.
 rule monitorSanctionsCannotFrontRun(address account) {
     address[] accounts = [account];
     
@@ -98,6 +103,7 @@ rule monitorSanctionsCannotFrontRun(address account) {
     assert !lastReverted;
 }
 
+/// @title The monitor() function cannot front-run and cause a subsequent call to monitor() revert (for indepndent accounts).
 rule monitorAccountsCannotFrontRun(address account1, address account2) {
     address[] accounts1 = [account1];
     address[] accounts2 = [account2];

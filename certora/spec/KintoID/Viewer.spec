@@ -2,6 +2,7 @@ import "setup.spec";
 
 use invariant lastMonitoredAtInThePast filtered{f -> !upgradeMethods(f)}
 
+/// @title Auxiliary rule: checks which functions change the isKYC status.
 rule whichFunctionsChange_isKYC(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
     env e1;
     env e2; calldataarg args;
@@ -12,6 +13,7 @@ rule whichFunctionsChange_isKYC(address account, method f) filtered{f -> !viewOr
     assert isBefore == isAfter;
 }
 
+/// @title isKYC() cannot revert.
 rule isKYC_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     env e1;
     env e2; calldataarg args;
@@ -28,6 +30,7 @@ rule isKYC_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     assert !lastReverted;
 }
 
+/// @title isSanctionsSafeIn() cannot revert.
 rule isSanctionsSafeIn_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     env e1;
     env e2; calldataarg args;
@@ -44,6 +47,7 @@ rule isSanctionsSafeIn_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     assert !lastReverted;
 }
 
+/// @title isSanctionsSafe() cannot revert.
 rule isSanctionsSafe_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     env e1;
     env e2; calldataarg args;
@@ -60,6 +64,7 @@ rule isSanctionsSafe_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     assert !lastReverted;
 }
 
+/// @title isCompany() cannot revert.
 rule isCompany_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     env e1;
     env e2; calldataarg args;
@@ -76,6 +81,7 @@ rule isCompany_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     assert !lastReverted;
 }
 
+/// @title isIndividual cannot revert.
 rule isIndividual_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {
     env e1;
     env e2; calldataarg args;

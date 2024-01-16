@@ -1,14 +1,17 @@
 import "setup.spec";
 import "../Initializable.spec";
 
+/// @title The allowed signer policies are either SINGLE_SIGNER(), MINUS_ONE_SIGNER() or ALL_SIGNERS().
 invariant AllowedSignerPolicy()
     signerPolicy() == SINGLE_SIGNER() ||
     signerPolicy() == MINUS_ONE_SIGNER() ||
     signerPolicy() == ALL_SIGNERS();
 
+/// @title The appSigner() of the zero address is the zero address.
 invariant ZeroAddressApp()
     appSigner(0) == 0;
 
+/// @title The number of the wallet owners is three at most.
 invariant NumberOfOwnersIntegrity()
     assert_uint256(MAX_SIGNERS()) >= getOwnersCount()
     {
@@ -18,6 +21,7 @@ invariant NumberOfOwnersIntegrity()
         }
     }
 
+/// @title The zero address is never an owner.
 invariant OwnerisNonZero()
     getOwnersCount() > 0 => !isOwner(0)
     {
@@ -29,6 +33,7 @@ invariant OwnerisNonZero()
         }
     }
 
+/// @title The owners array has no duplicates (no two identical owners).
 invariant OwnerListNoDuplicates()
     ( getOwnersCount() == 2 => (owners(0) != owners(1) && owners(1) !=0) ) &&
     ( getOwnersCount() == 3 => (owners(0) != owners(1) && owners(0) != owners(2) && owners(1) != owners(2)) )
@@ -38,6 +43,7 @@ invariant OwnerListNoDuplicates()
         }
     }
 
+/// @title The signer policy can never exceed the required owners account.
 invariant SignerPolicyCannotExceedOwnerCount()
     (initialized != MAX_VERSION()) => (
         (signerPolicy() == SINGLE_SIGNER() => getOwnersCount() >= 1) &&
@@ -57,6 +63,8 @@ invariant SignerPolicyCannotExceedOwnerCount()
         }
     }
 
+/// @title The first wallet owner (owners(0)) is always KYC.
+/// @notice We assume that after finishRecovery() the new owner was minted KYC. 
 invariant FirstOwnerIsKYC(env e)
     (e.block.timestamp > 0 && getOwnersCount() > 0) => isKYC_CVL(e.block.timestamp, owners(0))
     /// We assume that when finishing recovery the new owner has already been minted KYC by the providers.
@@ -74,6 +82,7 @@ invariant FirstOwnerIsKYC(env e)
         }
     } 
 
+/// @title Only the resetSigners() and finishRecovery() functions can remove an owner().
 rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isView} {
     bool ownerBefore = isOwner(account);
         env e;
@@ -81,9 +90,10 @@ rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isVie
         f(e, args);
     bool ownerAfter = isOwner(account);
 
-    assert ownerBefore != ownerAfter => isResetSigners(f);
+    assert ownerBefore && !ownerAfter => isResetSigners(f);
 }
 
+/// @title The first owner can only be changed by the finishRecovery() function (post-initialization).
 rule firstOwnerIsChangedOnlyByRecovery(method f) filtered{f -> !f.isView} {
     address firstOwner_before = owners(0);
         env e;
@@ -94,6 +104,7 @@ rule firstOwnerIsChangedOnlyByRecovery(method f) filtered{f -> !f.isView} {
     assert firstOwner_after != firstOwner_before => f.selector == sig:finishRecovery(address[]).selector;
 }
 
+/// @title finishRecovery() sets the three owners to the three new signers.
 rule finishRecoveryIntegrity() {
     env e;
     address[] signers;
@@ -103,7 +114,8 @@ rule finishRecoveryIntegrity() {
     assert owners(2) == signers[2];
 }
 
-/// If the validation succeeds, the signer's identity must correct (owner or app signer).
+/// @title If the validation succeeds, the signer's identity must correct (owner or app signer).
+/// @notice: in-progress
 rule validationSignerIntegrity() {
     env e;
     requireInvariant NumberOfOwnersIntegrity();
@@ -131,6 +143,7 @@ rule validationSignerIntegrity() {
     assert appHasSigner => appSigner(app) == signer, "App signer must sign for app transaction";
 }
 
+/// @title If the validation succeeds, then all relevant signers (according to policy) must be owners.
 rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
     /// Require invariants:
     requireInvariant NumberOfOwnersIntegrity();
@@ -200,6 +213,7 @@ rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
     assert true;
 }
 
+/// @title execute(), executeBatch() and validateUserOp() are only called by the EntryPoint.
 rule entryPointPriviligedFunctions(method f) 
 filtered{f -> !f.isView} {
     env e;
@@ -208,6 +222,7 @@ filtered{f -> !f.isView} {
     assert entryPointPriviliged(f) => e.msg.sender == entryPoint();
 }
 
+/// @title Only the contract can change the app white list and by calling setAppWhitelist().
 rule whichFunctionsChangeWhiteList(address app, method f) filtered{f -> !f.isView} {
     env e;
     calldataarg args;
@@ -219,6 +234,7 @@ rule whichFunctionsChangeWhiteList(address app, method f) filtered{f -> !f.isVie
         f.selector == sig:setAppWhitelist(address[],bool[]).selector && senderIsSelf(e);
 }
 
+/// @title Only the contract can change the funder white list and by calling setFunderWhitelist().
 rule whichFunctionsChangeFunderWhiteList(address app, method f) filtered{f -> !f.isView} {
     env e;
     calldataarg args;
@@ -230,6 +246,7 @@ rule whichFunctionsChangeFunderWhiteList(address app, method f) filtered{f -> !f
         f.selector == sig:setFunderWhitelist(address[],bool[]).selector && senderIsSelf(e);
 }
 
+/// @title Only the contract can change the funder white list and by calling setAppKey().
 rule whichFunctionsChangeAppSigner(address app, method f) filtered{f -> !f.isView} {
     env e;
     calldataarg args;

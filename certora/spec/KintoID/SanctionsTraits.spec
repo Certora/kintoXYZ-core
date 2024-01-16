@@ -45,7 +45,7 @@ function getSanctionsCount(address account) returns uint8 {
 │ Rules: ERC721                                                                                                    │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-
+/// @title The owner of a token could only be transferred to, or from the zero address.
 rule ownerCanChangeOnlyFromZeroAndBack(uint256 tokenID, method f) filtered{f -> !viewOrUpgrade(f)} {
     address ownerBefore = ownerOf(tokenID);
         env e;
@@ -56,6 +56,7 @@ rule ownerCanChangeOnlyFromZeroAndBack(uint256 tokenID, method f) filtered{f -> 
     assert ownerAfter != ownerBefore => (ownerBefore == 0 || ownerAfter == 0);
 }
 
+/// @title Only the _nextTokenID+1 is minted, and only by the mintCompanyKyc() or mintIndividualKyc() functions.
 rule mintOnlyNextID(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
     uint256 tokenID = require_uint256(nextTokenId() + 1);
 
@@ -77,6 +78,7 @@ rule mintOnlyNextID(address account, method f) filtered{f -> !viewOrUpgrade(f)} 
     );
 }
 
+/// @title The new owner of the nextTokenID is the only one who is being minted a token.
 rule mintToOwnerOnly(bool companyOrIndividual) {
     env e;
     uint8[] traits;
@@ -98,6 +100,7 @@ rule mintToOwnerOnly(bool companyOrIndividual) {
     assert ownerAfter == account;
 }
 
+/// @title only a KYC provider can change anyone's ERC721 balance.
 rule onlyKYCCanChangeBalance(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
     uint256 balanceBefore = balanceOf(account);
         env e;
@@ -108,6 +111,8 @@ rule onlyKYCCanChangeBalance(address account, method f) filtered{f -> !viewOrUpg
     assert balanceBefore != balanceAfter => hasRole(KYC_PROVIDER_ROLE(), e.msg.sender);
 }
 
+/// @title It's possible for the owner of any token to burn his own token.
+/// DEPRECATED - purpose is to show a bug
 rule burnByOwnerLiveness(uint256 tokenID) {
     address owner = ownerOf(tokenID);
 
@@ -125,6 +130,7 @@ rule burnByOwnerLiveness(uint256 tokenID) {
     assert !lastReverted;
 }
 
+/// @title It's impossible, by anyone, to burn a KYC token right after it's being minted.
 rule cannotBurnRightAfterMint(IKintoID.SignatureData signatureData) {
     bool companyOrIndividual;
     env e1;
@@ -147,6 +153,7 @@ rule cannotBurnRightAfterMint(IKintoID.SignatureData signatureData) {
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 
+/// @title If an account is sanctioned anywhere, then its sanctions count is non-zero.
 invariant hasSanctionCountIsNonZero(env e1, address account, uint16 CID)
     isSanctioned(e1, account, CID) => getSanctionsCount(account) > 0
     filtered{f -> !upgradeMethods(f)}
@@ -172,7 +179,7 @@ invariant hasSanctionCountIsNonZero(env e1, address account, uint16 CID)
         }
     }
 
-
+/// @title only the addSanction(), removeSanction(), and monitor() functions can change the sanction status (ignoring last minotred time).
 rule onlySanctionMethodCanSanction(method f) filtered{f -> !viewOrUpgrade(f)} {
     address account; uint16 CID;
     env e;
@@ -188,6 +195,9 @@ rule onlySanctionMethodCanSanction(method f) filtered{f -> !viewOrUpgrade(f)} {
         (f.selector == sig:removeSanction(address,uint16).selector || monitorMethods(f));
 }
 
+/// @title The addSanction() function:
+/// (a) Must turn on the sanction status for the correct countryID and account.
+/// (b) Must increase the sanction count for that account by 1.
 rule addSanctionIntegrity(address account, uint16 CID) {
     address account_B;
     uint16 CID_B;
@@ -206,6 +216,9 @@ rule addSanctionIntegrity(address account, uint16 CID) {
         "The number of sanctions must increase by 1";
 }
 
+/// @title The removeSanction() function:
+/// (a) Must turn off the sanction status for the correct countryID and account.
+/// (b) Must decrease the sanction count for that account by 1.
 rule removeSanctionIntegrity(address account, uint16 CID) {
     address account_B;
     uint16 CID_B;
@@ -224,6 +237,7 @@ rule removeSanctionIntegrity(address account, uint16 CID) {
         "The number of sanctions must decrease by 1";
 }
 
+/// @title The addSanction() function has no effect if the account is already sanctioned in the same country.
 rule addSanctionIdempotent(address account, uint16 CID) {
     env e1;
     bool sanctioned_before = isSanctioned(e1, account, CID);
@@ -235,6 +249,7 @@ rule addSanctionIdempotent(address account, uint16 CID) {
         "Adding a sanction a second time shouldn't change anything";
 }
 
+/// @title The removeSanction() function has no effect if the account is not sanctioned in the same country.
 rule removeSanctionIdempotent(address account, uint16 CID) {
     env e1;
     bool sanctioned_before = isSanctioned(e1, account, CID);
@@ -247,6 +262,7 @@ rule removeSanctionIdempotent(address account, uint16 CID) {
         "Removing a sanction a second time shouldn't change anything";
 }
 
+/// @title addSanction() is commutative with respect to the account and country ID.
 rule addSanctionCommutativity() {
     env e;
     address accountA; uint16 CID_A;
@@ -263,6 +279,7 @@ rule addSanctionCommutativity() {
     assert stateA[currentContract] == stateB[currentContract];
 }
 
+/// @title removeSanction() is commutative with respect to the account and country ID.
 rule removeSanctionCommutativity() {
     env e;
     address accountA; uint16 CID_A;
@@ -279,6 +296,7 @@ rule removeSanctionCommutativity() {
     assert stateA[currentContract] == stateB[currentContract];
 }
 
+/// @title Any sanction that was added could later be removed (by any KYC provider).
 rule addedSanctionCanBeRemoved(address account, uint16 CID) {
     env e1;
     env e2; require e2.msg.value == 0; 
@@ -294,9 +312,7 @@ rule addedSanctionCanBeRemoved(address account, uint16 CID) {
     assert hasRole2 => !lastReverted;
 }
 
-/// @rule: Once a sanction is added, it can be removed.
-/// The addSanction method can revert, if the sanctions count overflows.
-/// One has to assume the count is always < max_uint8.
+/// @title Any sanction that was removed could later be added (by any KYC provider).
 rule removedSanctionCanBeAdded(address account, uint16 CID) {
     env e1;
     env e2; require e2.msg.value == 0;
@@ -312,6 +328,7 @@ rule removedSanctionCanBeAdded(address account, uint16 CID) {
     assert hasRole2 => !lastReverted;
 }
 
+/// @title addSanction() or removeSanction() are account and countryID independent.
 rule addingOrRemovingSanctionsAreIndependent(bool addOrRemove_A, bool addOrRemove_B) {
     env eA;
     env eB;
@@ -352,6 +369,7 @@ rule addingOrRemovingSanctionsAreIndependent(bool addOrRemove_A, bool addOrRemov
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 
+/// @title Any trait that was added could later be removed (by any KYC provider).
 rule addedTraitCanBeRemoved(address account, uint8 TID) {
     env e1;
     env e2; require e2.msg.value == 0;
@@ -365,6 +383,7 @@ rule addedTraitCanBeRemoved(address account, uint8 TID) {
     assert hasRole2 => !lastReverted;
 }
 
+/// @title Any trait that was removed could later be added (by any KYC provider).
 rule removeTraitCanBeAdded(address account, uint8 TID) {
     env e1;
     env e2; require e2.msg.value == 0;
@@ -378,6 +397,9 @@ rule removeTraitCanBeAdded(address account, uint8 TID) {
     assert hasRole2 => !lastReverted;
 }
 
+/// @title Integrity of nonce transition:
+/// (a) Nonces cannot decrease and can increase by 1 at most.
+/// (b) A nonce could only change for one signer at a time.
 rule noncesIncreaseCorrectly(method f) filtered{f -> !viewOrUpgrade(f)} {
     address signerA;
     address signerB;

@@ -73,13 +73,16 @@ hook Sstore _allTokensIndex[KEY uint256 tokenID] uint256 index (uint256 index_ol
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
 
+/// @title The ERC721 token balance of any user is either zero or one.
 invariant TokenBalanceIsZeroOrOne(address account)
     balanceOf(account) ==0 || balanceOf(account) == 1
     filtered{f -> !upgradeMethods(f)}
 
+/// @title The ERC721 token balance of the zero address is zero.
 invariant BalanceOfZero()
     balanceOf(0) == 0;
 
+/// @title The zero address is not KYCd.
 invariant ZeroAddressNotKYC(env e)
     !viewer.isKYC(e,0)
     {
@@ -89,6 +92,7 @@ invariant ZeroAddressNotKYC(env e)
         }
     }
 
+/// @title If a token has a (non-zero) owner, then the total supply is greater than zero.
 invariant IsOwnedInTokensArray(uint256 tokenID)
     ownerOf(tokenID) !=0 => totalSupply() > 0
     filtered{f -> !upgradeMethods(f)}
@@ -106,6 +110,7 @@ invariant IsOwnedInTokensArray(uint256 tokenID)
         }
     }
 
+/// @title The token index of any tokenID must be less than the number of tokens minted.
 invariant TokenIndexIsUpToArrayLength(uint256 tokenID)
     forall uint256 _tokenID. NumberOfTokens == 0 ? 
         (tokensIndex[_tokenID] == 0) : tokensIndex[_tokenID] < NumberOfTokens
@@ -119,6 +124,7 @@ invariant TokenIndexIsUpToArrayLength(uint256 tokenID)
         }
     }
 
+/// @title The token index points to the same token in the tokens array.
 invariant TokenAtIndexConsistency()
     (forall uint256 index. 
         (index < NumberOfTokens => tokensIndex[TokenAtIndex[index]] == index) &&
@@ -135,5 +141,6 @@ invariant TokenAtIndexConsistency()
         }
     }
 
+/// @title If a tokenID has not owner, then its index is zero.
 invariant NoOwnerNoIndex(uint256 tokenID)
     ownerOf(tokenID) == 0 => tokensIndex[tokenID] == 0;

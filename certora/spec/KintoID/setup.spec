@@ -65,6 +65,7 @@ definition viewOrUpgrade(method f) returns bool = upgradeMethods(f) || f.isView;
 
 definition senderIsSelf(env e) returns bool = e.msg.sender == currentContract;
 
+/// @title lastMonitoredAt() is never in the future.
 invariant lastMonitoredAtInThePast(env e)
     e.block.timestamp >= lastMonitoredAt()
     {
@@ -73,8 +74,23 @@ invariant lastMonitoredAtInThePast(env e)
         }
     }
 
+/// @title The role admin of any role is the DEFAULT_ADMIN_ROLE()
 invariant AdminRoleIsDefaultRole(bytes32 role)
     getRoleAdmin(role) == DEFAULT_ADMIN_ROLE()
     {
         preserved with (env e) {require e.msg.sender != 0;}
     }
+
+/// @title Only the DEFAULT_ADMIN_ROLE() can revoke/grant a role from/to an account.
+rule onlyRoleAdminRevokesRole(method f, bytes32 role, address account) {
+    requireInvariant AdminRoleIsDefaultRole(role);
+
+    bool hasRole_before = hasRole(role, account);
+        env e;
+        calldataarg args;
+        f(e,args);
+    bool hasRole_after = hasRole(role, account);
+
+    assert (hasRole_before != hasRole_after && account != e.msg.sender) =>
+        hasRole(DEFAULT_ADMIN_ROLE(), e.msg.sender);
+}

@@ -1,5 +1,25 @@
 import "setup.spec";
-use invariant lastMonitoredAtInThePast;
+use invariant lastMonitoredAtInThePast filtered{f -> !upgradeMethods(f)};
+
+/// @title An account which is not a KYC provider cannot make monitor() revert. 
+rule monitorCannotRevertByNonProvider(method f) filtered{f -> !viewOrUpgrade(f)} {
+    env e1;
+    env e2; calldataarg args;
+    /// For simplicity, consider a single account and one data.
+    address account; address[] accounts = [account];
+    IKintoID.MonitorUpdateData data; IKintoID.MonitorUpdateData[][] traits = [[data]];
+    
+    storage initState = lastStorage;
+    bool senderIsProvider = hasRole(KYC_PROVIDER_ROLE(), e2.msg.sender);
+    bool senderIsRoleAdmin = hasRole(getRoleAdmin(KYC_PROVIDER_ROLE()), e2.msg.sender);
+
+    monitor(e1, accounts, traits) at initState;
+
+    f(e2, args) at initState;
+    monitor@withrevert(e1, accounts, traits);
+
+    assert !senderIsProvider && !senderIsAdminRole => !lastReverted;
+}
 
 /// @title The monitor() function is commutative with respect to update data, if the IDs are different (for a single account).  
 rule monitorSanctionsCommutative(address account) {
@@ -133,5 +153,17 @@ rule monitorAccountsCannotFrontRun(address account1, address account2) {
     monitor(e2, accounts2, traits2) at initState;
     monitor@withrevert(e1, accounts1, traits1);
 
+    assert !lastReverted;
+}
+
+/// @title A KYC provider can always call monitor() with empty data.
+rule monitorEmptyDataSucceeds() {
+    env e;
+    require e.msg.value == 0; /// Non-payable function
+    require hasRole(KYC_PROVIDER_ROLE(), e.msg.sender); /// Sender is KYC provider
+    address[] accounts; require accounts.length == 0;
+    IKintoID.MonitorUpdateData[][] traits; require traits.length == 0;
+
+    monitor@withrevert(e, accounts, traits);
     assert !lastReverted;
 }

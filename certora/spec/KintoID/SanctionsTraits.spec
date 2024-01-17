@@ -10,6 +10,7 @@ use invariant TokenBalanceIsZeroOrOne filtered{f -> !upgradeMethods(f)}
 use invariant BalanceOfZero filtered{f -> !upgradeMethods(f)}
 use invariant IsOwnedInTokensArray filtered{f -> !upgradeMethods(f)}
 use invariant ZeroAddressNotKYC filtered{f -> !upgradeMethods(f)}
+use rule onlyRoleAdminRevokesRole filtered{f -> !viewOrUpgrade(f)}
 
 methods {
     function isSanctioned(address, uint16) external returns (bool);
@@ -335,7 +336,7 @@ rule addingOrRemovingSanctionsAreIndependent(bool addOrRemove_A, bool addOrRemov
         removeSanction@withrevert(eA, accountA, CID_A);
     }
 
-    assert !(accountA == accountB && CID_A == CID_B) => !lastReverted;
+    assert !lastReverted;
 }
 
 /*
@@ -359,7 +360,7 @@ rule addedTraitCanBeRemoved(address account, uint8 TID) {
 }
 
 /// @title Any trait that was removed could later be added (by any KYC provider).
-rule removeTraitCanBeAdded(address account, uint8 TID) {
+rule removedTraitCanBeAdded(address account, uint8 TID) {
     env e1;
     env e2; require e2.msg.value == 0;
 

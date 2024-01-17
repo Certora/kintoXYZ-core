@@ -87,8 +87,8 @@ rule createWalletForKYCdOnly(address wallet) {
     assert (!isActive_before && isActive_after) => isKYC_CVL(e.block.timestamp, owner);
 }
 
-/// @title The zero address is never a wallet owner or wallet recoverer.
-rule ZeroAddressIsNotWalletOwnerOrRecoverer() {
+/// @title The zero address is never a wallet owner or a wallet recoverer.
+rule ZeroAddressIsNeitherWalletOwnerNorRecoverer() {
     env e;
     address owner; 
     address recoverer; uint256 salt;

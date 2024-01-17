@@ -11,7 +11,6 @@ invariant PaymasterEthSolvency()
     {
         preserved with (env e) {
             require !senderIsSelf(e);
-            //require owner() != currentContract;
         }
     }
 

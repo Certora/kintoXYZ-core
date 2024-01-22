@@ -89,6 +89,10 @@ rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isVie
     bool ownerBefore = isOwner(account);
         env e;
         calldataarg args;
+        /// Assuming initializing right after proxy deployment.
+        if(f.selector == sig:initialize(address,address).selector) {
+            require getOwnersCount() == 0;
+        }
         f(e, args);
     bool ownerAfter = isOwner(account);
 
@@ -146,7 +150,6 @@ rule validationSignerIntegrity() {
 }
 
 /// @title If the validation succeeds, then all relevant signers (according to policy) must be owners.
-/// @notice: fails because of tool bytes-inconsistency.
 rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
     /// Require invariants:
     requireInvariant NumberOfOwnersIntegrity();
@@ -190,7 +193,7 @@ rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
         }
     }
     else if(policy == MINUS_ONE_SIGNER()) {
-        assert signaturesLength == require_uint256(65 * (ownersCount - 1));
+        assert signaturesLength == assert_uint256(65 * (ownersCount - 1));
         if(ownersCount == 1) {
             assert false;
         }
@@ -202,7 +205,7 @@ rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
         }
     }
     else if(policy == ALL_SIGNERS()) {
-        assert signaturesLength == require_uint256(65 * ownersCount);
+        assert signaturesLength == assert_uint256(65 * ownersCount);
         if(ownersCount == 1) {
             assert isOwner_0;
         }
@@ -212,6 +215,42 @@ rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
         else {
             assert isOwner_0 && isOwner_1 && isOwner_2;
         }
+    }
+    assert true;
+}
+/// @title If there are signers duplicates in the validation process, it must return "failed".
+rule signatureDuplicatesCannotBeVerified() {
+    /// Require invariants:
+    requireInvariant NumberOfOwnersIntegrity();
+    requireInvariant OwnerisNonZero();
+    requireInvariant SignerPolicyCannotExceedOwnerCount();
+    requireInvariant OwnerListNoDuplicates();
+    requireInvariant AllowedSignerPolicy();
+    requireInvariant ZeroAddressApp();
+    /// Set rule parameters:
+    uint256 ownersCount = getOwnersCount();
+    uint8 policy = signerPolicy();
+    
+    env e;
+    KintoWallet.UserOperation userOp;
+    require to_mathint(userOp.signature.length) <= 65 * 4;
+    bytes32 userOpHash; bytes32 hash = signedMessageHash(userOpHash);
+    uint256 missingAccountFunds;
+    uint256 validationData = validateUserOp(e, userOp, userOpHash, missingAccountFunds);
+    require !(appSigner(ghostAppContract) !=0 && appWhitelist(ghostAppContract));
+
+    address signer0 = recoverCVL(hash, extractSigCVL(userOp.signature, 0));
+    address signer1 = recoverCVL(hash, extractSigCVL(userOp.signature, 1));
+    address signer2 = recoverCVL(hash, extractSigCVL(userOp.signature, 2));
+
+    if(ownersCount == 2 && policy == ALL_SIGNERS()) {
+        assert signer0 == signer1 => validationData == 1;
+    }
+    else if(ownersCount == 3 && policy == ALL_SIGNERS()) {
+        assert (signer0 == signer1 || signer0 == signer2 || signer2 == signer1) => validationData == 1;
+    }
+    else if(ownersCount == 3 && policy == MINUS_ONE_SIGNER()) {
+        assert signer0 == signer1 => validationData == 1;
     }
     assert true;
 }

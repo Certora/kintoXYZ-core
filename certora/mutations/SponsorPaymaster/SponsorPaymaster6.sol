@@ -85,8 +85,8 @@ contract SponsorPaymaster is Initializable, BasePaymaster, UUPSUpgradeable, Reen
      * @param account the account to deposit for.
      * msg.value the amount of token to deposit.
      */
-    function addDepositFor(address account) external override {
-        require(msg.value > 0, 'SP: requires a deposit');
+    function addDepositFor(address account) external payable override {
+        require(msg.value == 0, 'SP: requires a deposit');
         //(sender must have approval for the paymaster)
         balances[account] += msg.value;
         if (msg.sender == account) {

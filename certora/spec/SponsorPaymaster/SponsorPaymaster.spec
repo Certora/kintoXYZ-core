@@ -116,6 +116,41 @@ filtered{f -> !f.isView && !(f.selector ==
     assert !lastReverted;
 }
 
+/// @title The operation count per app is updated correctly
+rule operationsCountUpdatedCorrectly(address account, address app) {
+    uint256 rateCount_before; _, rateCount_before, _ = rateLimit(account, app);
+    uint256 cost_before; _, _, cost_before = costLimit(account, app);
+    uint256 totalCount_before; _, totalCount_before, _ = totalRateLimit(account);
+    mathint balance_before = balances(account);
+        env e;
+        bytes context; uint256 actualGasCost; IPaymaster.PostOpMode mode;
+        postOp(e, mode, context, actualGasCost);
+        uint256 time = e.block.timestamp;
+    uint256 rateCount_after; _, rateCount_after, _ = rateLimit(account, app);
+    uint256 cost_after; _, _, cost_after = costLimit(account, app);
+    uint256 totalCount_after; _, totalCount_after, _ = totalRateLimit(account);
+    mathint cost = balance_before - balances(account);
+
+    address appA; address accountA; 
+    appA, accountA, _ = contextDecode(context);
+
+    if(account != accountA || app != appA) {
+        assert rateCount_before == rateCount_after;
+        assert cost_before == cost_after;
+        if(account != accountA) {
+            assert totalCount_before == totalCount_after;
+        }
+        else {
+            assert totalCount_after - totalCount_before == 1 || totalCount_after == 1;
+        }
+    }
+    else {
+        assert rateCount_after - rateCount_before == 1 || rateCount_after == 1;
+        assert cost_after - cost_before == cost || to_mathint(cost_after) == cost;
+        assert totalCount_after - totalCount_before == 1 || totalCount_after == 1;
+    }
+}
+
 /// @title No operation can change the context output of validatePaymasterUserOp(). 
 rule validationContextIsConsistent(method f) 
 filtered{f -> !f.isView && f.selector != 
@@ -262,6 +297,30 @@ filtered{f -> !viewOrUpgrade(f)} {
     withdrawTokensTo@withrevert(e1, target, amount);
 
     assert !lastReverted;
+}
+
+/// @title the addDepositFor() function updates the depositInfo correctly.
+rule addDepositForIntegrity(address account) {
+    env e;
+    address account_other;
+
+    uint256 balanceBefore; uint256 unlockBlock_before;
+    balanceBefore, unlockBlock_before = depositInfo(account_other);
+    mathint sumOfUserBalances_before = sumOfUserBalances;
+        addDepositFor(e, account);
+    uint256 balanceAfter; uint256 unlockBlock_after;
+    balanceAfter, unlockBlock_after = depositInfo(account_other);
+    mathint sumOfUserBalances_after = sumOfUserBalances;
+
+    if(account_other != account) {
+        assert balanceAfter == balanceBefore;
+        assert unlockBlock_after == unlockBlock_before;
+    }
+    else {
+        assert balanceAfter - balanceBefore == to_mathint(e.msg.value);
+        assert unlockBlock_after == 0;
+    }
+    assert sumOfUserBalances_after - sumOfUserBalances_before == to_mathint(e.msg.value);
 }
 
 /// @title Only the user (or the EntryPoint) can change his own limits.

@@ -1,4 +1,5 @@
 using EntryPointMock as entry;
+using SimpleReentrantPaymaster as reentrant;
 
 methods {
     /// IERC1822ProxiableUpgradeable
@@ -35,6 +36,7 @@ function contextDecode(bytes context) returns (address, address, uint256) {
 }
 
 persistent ghost ERC1822ProxiableUUID(address) returns bytes32;
+persistent ghost bool reentrantWasCalled;
 
 definition upgradeMethods(method f) returns bool = 
     f.selector == sig:upgradeToAndCall(address,bytes).selector;
@@ -48,6 +50,9 @@ hook CALL(uint g, address addr, uint value, uint argsOffset, uint argsLength, ui
     /// Equivalent to require success for empty calldata:
     /// Every fallback returns success = true.
     require argsLength == 0 => rc == 1;
+    if(addr == reentrant) {
+        reentrantWasCalled = true;
+    }
 }
 
 /*

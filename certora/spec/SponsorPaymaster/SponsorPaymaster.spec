@@ -169,7 +169,7 @@ filtered{f -> !f.isView && f.selector !=
 
 /// @title A call validatePaymasterUserOp() can never front-run another call to the same function and make it revert.
 /// @notice The EntryPoint calls both validatePaymasterUserOp() and postOp() in the same flow. So we must batch these two calls
-/// together to one operation, which we would like to verify that cannot be-front run.
+/// together to one operation, which we would like to verify that cannot be front-run.
 rule validatePayMasterCannotFrontRunEachOther() {
     env e1;
     env e2;
@@ -195,9 +195,9 @@ rule validatePayMasterCannotFrontRunEachOther() {
     account2, sender2, _ = contextDecode(context2);
     postOp(e2, mode, context2, actualCost2);
 
-    /// Currently we only consider different senders and accounts.
-    /// If one of them is equal, then overflows are (theoretically) possible, but not practically.
-    require account1 != account2 && sender1 != sender2;
+    /// Currently we only consider different senders.
+    /// If the apps are equal, then the total limit could be reached.
+    require sender1 != sender2;
 
     /// First attempt - again (validate + postOp)
     validatePaymasterUserOp@withrevert(e1, userOp1, userOpHash1, maxCost1);

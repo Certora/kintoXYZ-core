@@ -49,15 +49,15 @@ rule mintOnlyNextID(address account, method f) filtered{f -> !viewOrUpgrade(f)} 
 
     assert balanceAfter > balanceBefore => ownerBefore != ownerAfter;
     assert balanceAfter > balanceBefore => (
-        f.selector == sig:mintCompanyKyc(IKintoID.SignatureData,uint8[]).selector || 
-        f.selector == sig:mintIndividualKyc(IKintoID.SignatureData,uint8[]).selector
+        f.selector == sig:mintCompanyKyc(IKintoID.SignatureData,uint16[]).selector || 
+        f.selector == sig:mintIndividualKyc(IKintoID.SignatureData,uint16[]).selector
     );
 }
 
 /// @title The new owner of the nextTokenID is the only one who is being minted a token.
 rule mintToOwnerOnly(bool companyOrIndividual) {
     env e;
-    uint8[] traits;
+    uint16[] traits;
     IKintoID.SignatureData signatureData;
 
     address account = signatureData.signer;
@@ -87,9 +87,8 @@ rule onlyKYCCanChangeBalance(address account, method f) filtered{f -> !viewOrUpg
     assert balanceBefore != balanceAfter => hasRole(KYC_PROVIDER_ROLE(), e.msg.sender);
 }
 
-/// @title It's possible for the owner of any token to burn his own token.
-/// DEPRECATED - purpose is to show a bug
-rule burnByOwnerLiveness(uint256 tokenID) {
+/// @title It's impossible for the owner of any token to burn his own token.
+rule burnByOwnerIsImpossible(uint256 tokenID) {
     address owner = ownerOf(tokenID);
 
     require balanceOf(owner) != 0; /// Can only burn if already minted (thus has balance).
@@ -103,7 +102,7 @@ rule burnByOwnerLiveness(uint256 tokenID) {
         require e.msg.value == 0; /// Not a payable function.
     burn@withrevert(e, tokenID);
     
-    assert !lastReverted;
+    assert lastReverted;
 }
 
 /// @title It's impossible, by anyone, to burn a KYC token right after it's being minted.
@@ -111,7 +110,7 @@ rule cannotBurnRightAfterMint(IKintoID.SignatureData signatureData) {
     bool companyOrIndividual;
     env e1;
     env e2;
-    uint8[] traits;
+    uint16[] traits;
     if(companyOrIndividual) {
         mintCompanyKyc(e1, signatureData, traits);
     }

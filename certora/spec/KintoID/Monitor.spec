@@ -1,5 +1,5 @@
 import "setup.spec";
-use invariant lastMonitoredAtInThePast filtered{f -> !upgradeMethods(f)};
+use invariant lastMonitoredAtInThePast filtered{f -> !upgradeMethods(f)}
 
 /// @title An account which is not a KYC provider cannot make monitor() revert. 
 rule monitorCannotRevertByNonProvider(method f) filtered{f -> !viewOrUpgrade(f)} {
@@ -18,7 +18,7 @@ rule monitorCannotRevertByNonProvider(method f) filtered{f -> !viewOrUpgrade(f)}
     f(e2, args) at initState;
     monitor@withrevert(e1, accounts, traits);
 
-    assert !senderIsProvider && !senderIsAdminRole => !lastReverted;
+    assert !senderIsProvider && !senderIsRoleAdmin => !lastReverted;
 }
 
 /// @title The monitor() function is commutative with respect to update data, if the IDs are different (for a single account).  

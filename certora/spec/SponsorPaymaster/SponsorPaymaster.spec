@@ -7,12 +7,23 @@ use invariant initializingIsDisabled filtered{f -> !upgradeMethods(f)}
 /// @title The sum of user balances is covered by the EntryPoint deposit of the Paymaster.
 invariant PaymasterEthSolvency()
     to_mathint(getDeposit()) >= sumOfUserBalances
-    filtered{f -> !upgradeMethods(f)}
+    filtered{f -> !upgradeMethods(f) &&
+    /// The owner is supposed to be restircted from calling this function: 
+    f.selector != sig:withdrawTo(address,uint256).selector}
     {
         preserved with (env e) {
             require !senderIsSelf(e);
         }
     }
+
+/// @title Only the contract owner may call withdrawTo().
+rule onlyOwnerCalls_withdrawTo() {
+    env e;
+    address _owner = owner();
+    calldataarg args;
+    withdrawTo(e, args);
+    assert e.msg.sender == _owner;
+}
 
 /// @title The gas cost post-op cannot depend on the user address.
 /// The contract spent can only change for the post-op context account.
@@ -20,10 +31,10 @@ rule postOpGasCostIsUserFree() {
     env e;
     IPaymaster.PostOpMode modeA;
     IPaymaster.PostOpMode modeB;
-    bytes contextA; uint256 priceA; address accountA; 
-        accountA, _, priceA = contextDecode(contextA);
-    bytes contextB;  uint256 priceB; address accountB;
-        accountB, _, priceB = contextDecode(contextB);
+    bytes contextA; uint256 priceA; address accountA; uint256 maxPriorityA;
+        accountA, _, priceA, maxPriorityA = contextDecode(contextA);
+    bytes contextB;  uint256 priceB; address accountB; uint256 maxPriorityB;
+        accountB, _, priceB, maxPriorityB = contextDecode(contextB);
     uint256 actualGasCost;
     storage initState = lastStorage;
 
@@ -40,7 +51,7 @@ rule postOpGasCostIsUserFree() {
 
     assert accountA != accountB => spentB_0 == spentB_1, "The contract spent gas could only change for the account";
     assert accountA != accountB => spentA_0 == spentA_2, "The contract spent gas could only change for the account";
-    assert priceB == priceA => spentA_1 - spentA_0 == spentB_2 - spentB_0, 
+    assert (priceB == priceA && maxPriorityA == maxPriorityB) => spentA_1 - spentA_0 == spentB_2 - spentB_0, 
         "If the gas price doesn't change between calls, then the spent amount shouldn't changed";
 }
 
@@ -57,7 +68,7 @@ rule balanceOnlyIncreasesByDeposit(address account, method f) filtered{f -> !vie
     assert reentrantWasCalled => (balanceBefore > balanceBefore => account == reentrant);
 }
 
-/// @title The balance of any account can decrease at most by the MAX_COST_OF_USEROP().
+/// @title The balance of any account can decrease at most by the MAX_COST_OF_VERIFICATION().
 rule balanceDecreaseIsAtMostMaxOpCost(address account, method f) 
 filtered{f -> !viewOrUpgrade(f) &&
     f.selector != sig:withdrawTokensTo(address,uint256).selector &&
@@ -69,7 +80,7 @@ filtered{f -> !viewOrUpgrade(f) &&
         f(e,args);
     uint256 balanceAfter = balances(account);
 
-    assert balanceAfter < balanceBefore => balanceBefore - balanceAfter <= to_mathint(MAX_COST_OF_USEROP());
+    assert balanceAfter < balanceBefore => balanceBefore - balanceAfter <= to_mathint(MAX_COST_OF_VERIFICATION());
 }
 
 /// @title No operation can front-run validatePaymasterUserOp() and make it revert.
@@ -84,7 +95,7 @@ filtered{f -> !viewOrUpgrade(f) && f.selector !=
     bytes context;
     context, _ = validatePaymasterUserOp(e1, args1) at initState;
     address app;
-    app, _, _ = contextDecode(context);
+    app, _, _, _ = contextDecode(context);
 
     f(e2, args2) at initState;
     validatePaymasterUserOp@withrevert(e1, args1);
@@ -93,7 +104,7 @@ filtered{f -> !viewOrUpgrade(f) && f.selector !=
     if(f.selector == sig:postOp(IPaymaster.PostOpMode,bytes,uint256).selector) {
         assert e2.msg.sender == entryPoint();
     }
-    else if(f.selector == sig:initialize(address).selector) {
+    else if(f.selector == sig:initialize(address,address,address).selector) {
         assert reverted => app == owner();
     }
     else if(f.selector == sig:unlockTokenDeposit().selector) {
@@ -107,27 +118,27 @@ filtered{f -> !viewOrUpgrade(f) && f.selector !=
 }
 
 /// @title The operation count per app is updated correctly
-rule operationsCountUpdatedCorrectly(address account, address app) {
-    uint256 rateCount_before; _, rateCount_before, _ = rateLimit(account, app);
-    uint256 cost_before; _, _, cost_before = costLimit(account, app);
-    uint256 totalCount_before; _, totalCount_before, _ = totalRateLimit(account);
+rule operationsCountUpdatedCorrectly(address sender, address app) {
+    uint256 rateCount_before; _, rateCount_before, _ = rateLimit(sender, app);
+    uint256 cost_before; _, _, cost_before = costLimit(sender, app);
+    uint256 totalCount_before; _, totalCount_before, _ = globalRateLimit(sender);
     mathint balance_before = balances(app);
         env e;
         bytes context; uint256 actualGasCost; IPaymaster.PostOpMode mode;
         postOp(e, mode, context, actualGasCost);
         uint256 time = e.block.timestamp;
-    uint256 rateCount_after; _, rateCount_after, _ = rateLimit(account, app);
-    uint256 cost_after; _, _, cost_after = costLimit(account, app);
-    uint256 totalCount_after; _, totalCount_after, _ = totalRateLimit(account);
+    uint256 rateCount_after; _, rateCount_after, _ = rateLimit(sender, app);
+    uint256 cost_after; _, _, cost_after = costLimit(sender, app);
+    uint256 totalCount_after; _, totalCount_after, _ = globalRateLimit(sender);
     mathint cost = balance_before - balances(app);
 
-    address appA; address accountA; 
-    appA, accountA, _ = contextDecode(context);
+    address appA; address walletA; 
+    appA, walletA, _, _ = contextDecode(context);
 
-    if(account != accountA || app != appA) {
+    if(sender != WalletOwners(walletA, 0) || app != appA) {
         assert rateCount_before == rateCount_after;
         assert cost_before == cost_after;
-        if(account != accountA) {
+        if(sender != WalletOwners(walletA, 0)) {
             assert totalCount_before == totalCount_after;
         }
         else {
@@ -153,21 +164,22 @@ filtered{f -> !f.isView && f.selector !=
     bytes context2; uint256 data2;
 
     context1, data1 = validatePaymasterUserOp(e1, args1) at initState;
-    address account1; address userAccount1; uint256 gasPricePostOp1;
-    account1, userAccount1, gasPricePostOp1 = contextDecode(context1);
+    address account1; address sender1; uint256 gasPricePostOp1; uint256 maxPriorityFeePerGas1;
+    account1, sender1, gasPricePostOp1, maxPriorityFeePerGas1 = contextDecode(context1);
 
     f(e2, args2) at initState;
     context2, data2 = validatePaymasterUserOp(e1, args1);
-    address account2; address userAccount2; uint256 gasPricePostOp2;
-    account2, userAccount2, gasPricePostOp2 = contextDecode(context2);
+    address account2; address sender2; uint256 gasPricePostOp2; uint256 maxPriorityFeePerGas2;
+    account2, sender2, gasPricePostOp2, maxPriorityFeePerGas2 = contextDecode(context2);
 
     assert data1 == data2, "No operation should alter the validation data";
     assert account1 == account2 && 
-        userAccount1 == userAccount2 && 
-        gasPricePostOp1 == gasPricePostOp2, "No operation should alter the validation context";
+        sender1 == sender2 && 
+        gasPricePostOp1 == gasPricePostOp2 &&
+        maxPriorityFeePerGas1 == maxPriorityFeePerGas2, "No operation should alter the validation context";
 }
 
-/// @title A call validatePaymasterUserOp() can never front-run another call to the same function and make it revert.
+/// @title A call validatePaymasterUserOp() from a different wallet owner can never front-run another call to the same function and make it revert.
 /// @notice The EntryPoint calls both validatePaymasterUserOp() and postOp() in the same flow. So we must batch these two calls
 /// together to one operation, which we would like to verify that cannot be front-run.
 rule validatePayMasterCannotFrontRunEachOther() {
@@ -181,23 +193,23 @@ rule validatePayMasterCannotFrontRunEachOther() {
     uint256 maxCost1;
     uint256 maxCost2;
 
-    bytes context1; address account1; address sender1; uint256 actualCost1;
-    bytes context2; address account2; address sender2; uint256 actualCost2;
+    bytes context1; address account1; address wallet1; uint256 actualCost1;
+    bytes context2; address account2; address wallet2; uint256 actualCost2;
     
     storage initState = lastStorage;
     /// First attempt (validate + postOp)
     context1, _ = validatePaymasterUserOp(e1, userOp1, userOpHash1, maxCost1) at initState;
-    account1, sender1, _ = contextDecode(context1);
+    account1, wallet1, _, _ = contextDecode(context1);
     postOp(e1, mode, context1, actualCost1);
     
     /// Second user (validate + postOp)
     context2, _ = validatePaymasterUserOp(e2, userOp2, userOpHash2, maxCost2) at initState;
-    account2, sender2, _ = contextDecode(context2);
+    account2, wallet2, _, _= contextDecode(context2);
     postOp(e2, mode, context2, actualCost2);
 
-    /// Currently we only consider different senders.
+    /// Currently we only consider different senders (wallet owners).
     /// If the apps are equal, then the total limit could be reached.
-    require sender1 != sender2;
+    require WalletOwners(wallet1, 0) != WalletOwners(wallet2, 0);
 
     /// First attempt - again (validate + postOp)
     validatePaymasterUserOp@withrevert(e1, userOp1, userOpHash1, maxCost1);
@@ -213,14 +225,14 @@ rule lastOperationTimeIsInThePast(address account, address app, method f)
 filtered{f -> !viewOrUpgrade(f)} {
     uint256 rate_lastOp_before; rate_lastOp_before, _ , _ = rateLimit(account, app);
     uint256 cost_lastOp_before; cost_lastOp_before, _ , _ = costLimit(account, app);
-    uint256 total_lastOp_before; total_lastOp_before, _ , _ = totalRateLimit(account);
+    uint256 total_lastOp_before; total_lastOp_before, _ , _ = globalRateLimit(account);
         env e;
         calldataarg args;
         f(e, args);
         uint256 time = e.block.timestamp;
     uint256 rate_lastOp_after; rate_lastOp_after, _ , _ = rateLimit(account, app);
     uint256 cost_lastOp_after; cost_lastOp_after, _ , _ = costLimit(account, app);
-    uint256 total_lastOp_after; total_lastOp_after, _ , _ = totalRateLimit(account);
+    uint256 total_lastOp_after; total_lastOp_after, _ , _ = globalRateLimit(account);
 
     assert rate_lastOp_before <= time => rate_lastOp_after <= time;
     assert cost_lastOp_before <= time => cost_lastOp_after <= time;
@@ -228,24 +240,31 @@ filtered{f -> !viewOrUpgrade(f)} {
 }
 
 /// @title The postOp() changes the user limits of the op input context (account and sender) only.
-rule postOpUpdatesLimits() {
+/// The limits are changed only for the context wallet owner.
+rule postOpUpdatesLimits(address wallet, address account) {
     env e;
-    address sender; address account;
     uint256 count1; uint256 lastOpTime_rate1; uint256 ethCount1; uint256 lastOpTime_cost1;
     uint256 count2; uint256 lastOpTime_rate2; uint256 ethCount2; uint256 lastOpTime_cost2;
     
-    count1, lastOpTime_rate1, ethCount1, lastOpTime_cost1 = appUserLimit(sender, account);
+    count1, lastOpTime_rate1, ethCount1, lastOpTime_cost1 = appUserLimit(wallet, account);
 
     IPaymaster.PostOpMode mode;
     bytes context;
     uint256 gasCost;
-    address _account; address _sender;
-    _account, _sender, _ = contextDecode(context);
+    address _account; address _wallet;
+    _account, _wallet, _, _ = contextDecode(context);
     postOp(e, mode, context, gasCost);
-    
-    count2, lastOpTime_rate2, ethCount2, lastOpTime_cost2 = appUserLimit(sender, account);
 
-    assert lastOpTime_rate1 != lastOpTime_rate2 => (sender == _sender && account == _account);
+    bool sameOwners = WalletOwners(_wallet, 0) == WalletOwners(wallet, 0);
+    
+    count2, lastOpTime_rate2, ethCount2, lastOpTime_cost2 = appUserLimit(wallet, account);
+
+    assert (
+        count1 != count2 ||
+        lastOpTime_rate1 != lastOpTime_rate2 ||
+        ethCount1 != ethCount2 ||
+        lastOpTime_cost1 != lastOpTime_cost2
+    ) => (sameOwners && account == _account);
 }
 
 /// @title Any operation may change the contract spent amount and balance for one app at a time.
@@ -293,8 +312,9 @@ filtered{f -> !viewOrUpgrade(f)} {
 }
 
 /// @title No operation can front-run and make a call to withdrawTokensTo() revert.
-rule cannotDos_withdrawTokensTo(method f) 
-filtered{f -> !viewOrUpgrade(f)} {
+rule cannotDos_withdrawTokensTo(method f)
+/// The owner is supposed to be restircted from calling this function:  
+filtered{f -> !viewOrUpgrade(f) && f.selector != sig:withdrawTo(address,uint256).selector} {
     env e1;
     require e1.block.number > 0;
     address target; uint256 amount;
@@ -317,7 +337,7 @@ filtered{f -> !viewOrUpgrade(f)} {
     if(f.selector == sig:postOp(IPaymaster.PostOpMode,bytes,uint256).selector) {
         assert e2.msg.sender == entryPoint();
     }
-    else if(f.selector == sig:initialize(address).selector) {
+    else if(f.selector == sig:initialize(address,address,address).selector) {
         assert reverted => e1.msg.sender == owner();
     }
     else {
@@ -378,7 +398,7 @@ filtered{f -> !viewOrUpgrade(f)} {
     total_lastOperationTime_before,
     total_operationCount_before,
     total_ethCostCount_before = 
-        totalRateLimit(account);
+        globalRateLimit(account);
     amount_before, unlockBlock_before = depositInfo(account);
 
     env e; require e.msg.sender != account;
@@ -408,7 +428,7 @@ filtered{f -> !viewOrUpgrade(f)} {
     total_lastOperationTime_after,
     total_operationCount_after,
     total_ethCostCount_after = 
-        totalRateLimit(account);
+        globalRateLimit(account);
     amount_after, unlockBlock_after = depositInfo(account);
     
     if(e.msg.sender != entryPoint()) {
@@ -424,7 +444,7 @@ filtered{f -> !viewOrUpgrade(f)} {
         assert amount_before <= amount_after, "No one can reduce the deposit amount of another";
     }
     
-    if(f.selector == sig:initialize(address).selector) {
+    if(f.selector == sig:initialize(address,address,address).selector) {
         assert unlockBlock_before != unlockBlock_after => account == owner();
     }
     else {

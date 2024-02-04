@@ -3,7 +3,7 @@ using KintoWalletFactory as factory;
 methods {
     /// Factory
     function factory.getWalletTimestamp(address wallet) external returns (uint256) envfree;
-    function factory._preventCreationBytecode(bytes calldata) internal => NONDET;
+    //function factory._preventCreationBytecode(bytes calldata) internal => NONDET;
 
     /// IKintoID
     function _.isKYC(address account) external with (env e) => isKYC_CVL(e.block.timestamp, account) expect bool;
@@ -41,7 +41,7 @@ persistent ghost mapping(uint256 => mapping(address => bool)) _isKYC {
 rule createAccountCorrectAddress() {
     env e;
     require e.block.timestamp > 0;
-    address owner; address recoverer; uint256 salt1; uint256 salt2;
+    address owner; address recoverer; bytes32 salt1; bytes32 salt2;
     address walletCreated = createAccount(e, owner, recoverer, salt1);
     address walletAddress = getAddress(e, owner, recoverer, salt2);
 
@@ -54,7 +54,7 @@ rule getAddressInjectivity() {
     require e.block.timestamp > 0;
     address owner1; address owner2; 
     address recoverer1; address recoverer2;
-    uint256 salt1; uint256 salt2;
+    bytes32 salt1; bytes32 salt2;
     address walletAddress1 = getAddress(e, owner1, recoverer1, salt1);
     address walletAddress2 = getAddress(e, owner2, recoverer2, salt2);
 
@@ -80,7 +80,7 @@ rule createWalletForKYCdOnly(address wallet) {
     bool isActive_before = isWalletActive(wallet);
         env e;
         require e.block.timestamp > 0;
-        address owner; address recoverer; uint256 salt;
+        address owner; address recoverer; bytes32 salt;
         createAccount(e, owner, recoverer, salt);
     bool isActive_after = isWalletActive(wallet);
 
@@ -91,7 +91,7 @@ rule createWalletForKYCdOnly(address wallet) {
 rule ZeroAddressIsNeitherWalletOwnerNorRecoverer() {
     env e;
     address owner; 
-    address recoverer; uint256 salt;
+    address recoverer; bytes32 salt;
     createAccount(e, owner, recoverer, salt);
 
     assert owner !=0;

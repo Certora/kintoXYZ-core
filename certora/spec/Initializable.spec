@@ -26,10 +26,11 @@ function initializingDisabled() returns bool {
 rule cannotInitializeIfDisabled() {
     requireInvariant initializingIsDisabled();
 
-    env e; address owner;
-    initialize@withrevert(e, owner);
+    env e; calldataarg args;
+    initialize@withrevert(e, args);
     assert lastReverted;
 }
 
 invariant initializingIsDisabled()
-    initializingDisabled();
+    initializingDisabled()
+    filtered{f -> f.selector != initialize(address,address,address).selector}

@@ -16,9 +16,9 @@ contract EntryPointMock is StakeManager, IEntryPoint {
         walletFactory = _walletFactory;
     }
 
-    function decodeContext(bytes calldata context) external pure returns (address,address,uint256) {
-        (address account, address userAccount, uint256 gasPricePostOp) =
-            abi.decode(context, (address, address, uint256));
-        return (account, userAccount, gasPricePostOp);
+    function decodeContext(bytes calldata context) external pure returns (address,address,uint256,uint256) {
+        (address account, address walletAccount, uint256 maxFeePerGas, uint256 maxPriorityFeePerGas) = 
+            abi.decode(context, (address, address, uint256, uint256));
+        return (account, walletAccount, maxFeePerGas, maxPriorityFeePerGas);
     }
 }

@@ -64,12 +64,12 @@ invariant SignerPolicyCannotExceedOwnerCount()
     }
 
 /// @title The first wallet owner (owners(0)) is always KYC.
-/// @notice We assume that after finishRecovery() the new owner was minted KYC. 
+/// @notice We assume that after completeRecovery() the new owner was minted KYC. 
 invariant FirstOwnerIsKYC(env e)
     (e.block.timestamp > 0 && getOwnersCount() > 0) => isKYC_CVL(e.block.timestamp, owners(0))
     /// We assume that when finishing recovery the new owner has already been minted KYC by the providers.
     /// Also, see rule 'firstOwnerIsChangedOnlyByRecovery'.
-    filtered{f -> f.selector != sig:finishRecovery(address[]).selector}
+    filtered{f -> f.selector != sig:completeRecovery(address[]).selector}
     {
         preserved with (env eP) {
             require eP.block.timestamp == e.block.timestamp;
@@ -82,7 +82,7 @@ invariant FirstOwnerIsKYC(env e)
         }
     } 
 
-/// @title Only the resetSigners() and finishRecovery() functions can remove an owner().
+/// @title Only the resetSigners() and completeRecovery() functions can remove an owner().
 rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isView} {
     requireInvariant NumberOfOwnersIntegrity();
 
@@ -99,7 +99,7 @@ rule whichFunctionRemovesOwner(address account, method f) filtered{f -> !f.isVie
     assert ownerBefore && !ownerAfter => isResetSigners(f);
 }
 
-/// @title The first owner can only be changed by the finishRecovery() function (post-initialization).
+/// @title The first owner can only be changed by the completeRecovery() function (post-initialization).
 rule firstOwnerIsChangedOnlyByRecovery(method f) filtered{f -> !f.isView} {
     address firstOwner_before = owners(0);
         env e;
@@ -107,14 +107,14 @@ rule firstOwnerIsChangedOnlyByRecovery(method f) filtered{f -> !f.isView} {
         f(e, args);
     address firstOwner_after = owners(0);  
 
-    assert firstOwner_after != firstOwner_before => f.selector == sig:finishRecovery(address[]).selector;
+    assert firstOwner_after != firstOwner_before => f.selector == sig:completeRecovery(address[]).selector;
 }
 
-/// @title finishRecovery() sets the three owners to the three new signers.
-rule finishRecoveryIntegrity() {
+/// @title completeRecovery() sets the three owners to the three new signers.
+rule completeRecoveryIntegrity() {
     env e;
     address[] signers;
-    finishRecovery(e, signers);
+    completeRecovery(e, signers);
     assert owners(0) == signers[0];
     assert owners(1) == signers[1];
     assert owners(2) == signers[2];
@@ -143,7 +143,7 @@ rule validationSignerIntegrity() {
     /// Hash message signer:
     address signer = recoverCVL(hash, userOp.signature);
     
-    bool appHasSigner = (appSigner(app) !=0 && appWhitelist(app));
+    bool appHasSigner = appRegistry.getSponsor(app) == 0;
 
     assert !appHasSigner => isOwner(signer), "Owner must be signer of wallet transaction";
     assert appHasSigner => appSigner(app) == signer, "App signer must sign for app transaction";
@@ -170,7 +170,7 @@ rule validationSignerPolicyIntegrity(uint8 policy, uint256 ownersCount) {
     /// Assume success:
     require validationData == 0;
     /// Assume signers (non-app) validation:
-    require !(appSigner(ghostAppContract) !=0 && appWhitelist(ghostAppContract));
+    require appRegistry.getSponsor(ghostAppContract) == 0;
 
     /// Get hash message signers:
     uint256 signaturesLength = userOp.signature.length;
@@ -237,7 +237,7 @@ rule signatureDuplicatesCannotBeVerified() {
     bytes32 userOpHash; bytes32 hash = signedMessageHash(userOpHash);
     uint256 missingAccountFunds;
     uint256 validationData = validateUserOp(e, userOp, userOpHash, missingAccountFunds);
-    require !(appSigner(ghostAppContract) !=0 && appWhitelist(ghostAppContract));
+    require appRegistry.getSponsor(ghostAppContract) == 0;
 
     address signer0 = recoverCVL(hash, extractSigCVL(userOp.signature, 0));
     address signer1 = recoverCVL(hash, extractSigCVL(userOp.signature, 1));
@@ -273,7 +273,7 @@ rule whichFunctionsChangeWhiteList(address app, method f) filtered{f -> !f.isVie
     bool isWhiteList_after = appWhitelist(app);
     
     assert isWhiteList_after != isWhiteList_before =>
-        f.selector == sig:setAppWhitelist(address[],bool[]).selector && senderIsSelf(e);
+        f.selector == sig:whitelistApp(address[],bool[]).selector && senderIsSelf(e);
 }
 
 /// @title Only the contract can change the funder white list and by calling setFunderWhitelist().

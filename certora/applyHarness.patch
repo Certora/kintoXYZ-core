@@ -1,15 +1,15 @@
---- ../src/KintoID.sol	2024-01-11 14:11:45.673358961 +0200
-+++ 	2024-01-11 18:54:06.632582120 +0200
-@@ -36,7 +36,7 @@
+--- ../src/KintoID.sol	2024-02-04 09:54:43.397170547 +0200
++++ 	2024-02-04 11:00:18.796647883 +0200
+@@ -45,7 +45,7 @@
  
      /* ============ State Variables ============ */
  
 -    uint256 private _nextTokenId;
 +    uint256 internal _nextTokenId;
  
-    // We'll monitor the whole list every single day and update it
+     // We'll monitor the whole list every single day and update it
      uint256 public override lastMonitoredAt;
-@@ -295,6 +295,16 @@
+@@ -318,6 +318,16 @@
      /* ============ View Functions ============ */
  
      /**
@@ -26,15 +26,14 @@
       * @dev Returns whether the account holder is KYCd
       * @param _account account to be checked.
       * @return true if the account has KYC token.
---- ../src/wallet/KintoWalletFactory.sol	2024-01-11 18:54:35.503409326 +0200
-+++ 	2024-01-11 18:55:54.380889497 +0200
-@@ -227,7 +227,8 @@
-      */
-     function getAddress(address owner, address recoverer, uint256 salt) public view override returns (address) {
-         return Create2.computeAddress(bytes32(salt), keccak256(abi.encodePacked(
--                type(SafeBeaconProxy).creationCode,
-+                /// Certora: temporary removal to solve reachability issue:
-+                //type(SafeBeaconProxy).creationCode,
-                 abi.encode(
-                     address(beacon),
-                     abi.encodeCall(KintoWallet.initialize, (owner, recoverer))
+--- ../src/wallet/KintoWalletFactory.sol	2024-02-04 09:54:43.397170547 +0200
++++ 	2024-02-04 11:00:53.376676565 +0200
+@@ -236,7 +236,7 @@
+             bytes32(salt),
+             keccak256(
+                 abi.encodePacked(
+-                    type(SafeBeaconProxy).creationCode,
++                    //type(SafeBeaconProxy).creationCode,
+                     abi.encode(address(beacon), abi.encodeCall(IKintoWallet.initialize, (owner, recoverer)))
+                 )
+             )

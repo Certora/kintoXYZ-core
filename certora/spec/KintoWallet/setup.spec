@@ -1,12 +1,12 @@
 using MockECDSA as MockECDSA;
 using BytesLibMock as BytesLibMock;
+using KintoAppRegistry as appRegistry;
 
 methods {
     /// KintoWallet
     function entryPoint() external returns (address) envfree;
     function getNonce() external returns (uint) envfree;
     function getOwnersCount() external returns (uint) envfree;
-    function isTokenApproved(address,address) external returns (uint256) envfree;
     function owners(uint256) external returns (address) envfree;
     function recoverer() external returns (address) envfree;
     function inRecovery() external returns (uint256) envfree;
@@ -19,7 +19,7 @@ methods {
     function MINUS_ONE_SIGNER() external returns (uint8) envfree;
     function ALL_SIGNERS() external returns (uint8) envfree;
     function MAX_SIGNERS() external returns (uint8) envfree;
-    function KintoWallet._getAppContract(bytes calldata) internal returns (address) => randomAppContract();
+    function KintoWallet._decodeCallData(bytes calldata) internal returns (address,bool) => randomAppContract();
 
     /// BytesSignature
     function BytesLibMock.extractSignature(bytes32, uint256) external returns (bytes memory) envfree;
@@ -34,12 +34,11 @@ methods {
     /// IKintoID
     function _.isKYC(address account) external with (env e) => isKYC_CVL(e.block.timestamp, account) expect bool;
 
-    /// IERC20
-    function _.approve(address,uint256) external => NONDET;
+    /// appRegistry
+    function appRegistry.getSponsor(address) external returns (address) envfree;
 }
 
 definition senderIsSelf(env e) returns bool = e.msg.sender == currentContract;
-definition MAX_ADDRESS() returns address = 0xffffffffffffffffffffffffffffffffffffffff;
 
 definition entryPointPriviliged(method f) returns bool = 
     f.selector == sig:execute(address,uint256,bytes).selector ||
@@ -47,13 +46,14 @@ definition entryPointPriviliged(method f) returns bool =
     f.selector == sig:validateUserOp(KintoWallet.UserOperation,bytes32,uint256).selector;
 
 definition isResetSigners(method f) returns bool = 
-    f.selector == sig:finishRecovery(address[]).selector ||
+    f.selector == sig:completeRecovery(address[]).selector ||
     f.selector == sig:resetSigners(address[],uint8).selector;
 
 /// Mock for the KintoID.isKYC(uint256 timestamp, address account) function.
 function isKYC_CVL(uint256 time, address account) returns bool {
     return _isKYC[time][account];
 }
+
 /// Generic ghost function for function toEthSignedMessageHash(bytes32 hash)
 persistent ghost signedMessageHash(bytes32) returns bytes32;
 
@@ -82,12 +82,13 @@ persistent ghost mapping(uint256 => mapping(address => bool)) _isKYC {
     axiom forall uint256 time. !_isKYC[time][0];
 }
 
-/// A random (NONDET) summary for _getAppContract(bytes callData) that stores the output in a ghost variable.
+/// A random (NONDET) summary for _decodeCallData(bytes callData) that stores the output in a ghost variable.
 /// The ghost address could be later fetched outside the call to validateUserOp().
 ghost address ghostAppContract;
 
-function randomAppContract() returns address {
-    address _arbAppContract; 
+function randomAppContract() returns (address,bool) {
+    address _arbAppContract;
+    bool batched; 
     ghostAppContract = _arbAppContract;
-    return ghostAppContract;
+    return (ghostAppContract, batched);
 }

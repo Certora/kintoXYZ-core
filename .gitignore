@@ -9,6 +9,6 @@ bin
 # Dotenv file
 .env
 
-# node
-node_modules/
-out/
+# Certora
+.certora_internal/*
+certora/munged/*

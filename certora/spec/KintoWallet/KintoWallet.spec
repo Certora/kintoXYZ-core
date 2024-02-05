@@ -121,7 +121,6 @@ rule completeRecoveryIntegrity() {
 }
 
 /// @title If the validation succeeds, the signer's identity must correct (owner or app signer).
-/// @notice: in-progress - must refine the app-signature expected behavior.
 rule validationSignerIntegrity() {
     env e;
     requireInvariant NumberOfOwnersIntegrity();
@@ -136,17 +135,17 @@ rule validationSignerIntegrity() {
     uint256 validationData = validateUserOp(e, userOp, userOpHash, missingAccountFunds);
     /// Assuming the validation succeeded:
     require validationData == 0;
-    /// App from userOp:
-    address app = ghostAppContract;
+    /// Sponsor app from userOp:
+    address app = appRegistry.getSponsor(ghostAppContract);
     /// userOp hash + Eth signature hash:
     bytes32 hash = signedMessageHash(userOpHash);
     /// Hash message signer:
     address signer = recoverCVL(hash, userOp.signature);
     
-    bool appHasSigner = appRegistry.getSponsor(app) == 0;
+    bool appHasSigner = appRegistry.getSponsor(app) != 0;
 
     assert !appHasSigner => isOwner(signer), "Owner must be signer of wallet transaction";
-    assert appHasSigner => appSigner(app) == signer, "App signer must sign for app transaction";
+    assert (appHasSigner && !isOwner(signer)) => appSigner(app) == signer, "App signer must sign for app transaction";
 }
 
 /// @title If the validation succeeds, then all relevant signers (according to policy) must be owners.

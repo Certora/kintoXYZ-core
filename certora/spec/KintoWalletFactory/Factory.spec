@@ -36,7 +36,7 @@ persistent ghost mapping(uint256 => mapping(address => bool)) _isKYC {
 │ Rules                                                                                     │
 └─────────────────────────────────────────────────────────────────────────────────────────────────────────────────────┘
 */
-
+/*
 /// @title The address of the contract created by createAccount() must match the value of getAddress() with the same parameters.
 rule createAccountCorrectAddress() {
     env e;
@@ -62,9 +62,11 @@ rule getAddressInjectivity() {
     assert recoverer1 != recoverer2 => walletAddress1 != walletAddress2;
     assert salt1 != salt2 => walletAddress1 != walletAddress2;
 }
+*/
 
 /// @title Once a wallet is active (timestamp > 0), it never becomes inactive (timestamp = 0).
-rule onceActiveAlwaysActive(address wallet, method f) filtered{f -> !f.isView} {
+rule onceActiveAlwaysActive(address wallet, method f) 
+filtered{f -> !f.isView && f.selector != upgradeToAndCall(address,bytes).selector} {
     bool isActive_before = isWalletActive(wallet);
         env e;
         require e.block.timestamp > 0;

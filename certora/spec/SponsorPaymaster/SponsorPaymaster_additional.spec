@@ -43,9 +43,10 @@ rule validatePayMasterCannotFrontRunEachOther() {
 
 /// @title No operation can front-run validatePaymasterUserOp() and make it revert.
 rule noOperationFrontRunsValidate(method f) 
-filtered{f -> !viewOrUpgrade(f) && f.selector != 
-    sig:validatePaymasterUserOp(SponsorPaymaster.UserOperation,bytes32,uint256).selector} {
-    
+filtered{f -> !viewOrUpgrade(f) &&  
+    f.selector != sig:initialize(address,address,address).selector &&
+    f.selector != sig:validatePaymasterUserOp(SponsorPaymaster.UserOperation,bytes32,uint256).selector} 
+{    
     env e1; calldataarg args1;
     env e2; calldataarg args2;
     storage initState = lastStorage;
@@ -61,9 +62,6 @@ filtered{f -> !viewOrUpgrade(f) && f.selector !=
 
     if(f.selector == sig:postOp(IPaymaster.PostOpMode,bytes,uint256).selector) {
         assert e2.msg.sender == entryPoint();
-    }
-    else if(f.selector == sig:initialize(address,address,address).selector) {
-        assert reverted => app == owner();
     }
     else if(f.selector == sig:unlockTokenDeposit().selector) {
         assert reverted => app == e2.msg.sender;

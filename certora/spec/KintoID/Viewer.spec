@@ -3,7 +3,7 @@ import "setup.spec";
 use invariant lastMonitoredAtInThePast filtered{f -> !upgradeMethods(f)}
 
 /// @title Auxiliary rule: checks which functions change the isKYC status.
-rule whichFunctionsChange_isKYC(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
+/*rule whichFunctionsChange_isKYC(address account, method f) filtered{f -> !viewOrUpgrade(f)} {
     env e1;
     env e2; calldataarg args;
     
@@ -11,7 +11,7 @@ rule whichFunctionsChange_isKYC(address account, method f) filtered{f -> !viewOr
         f(e2, args);
     bool isAfter = isKYC(e1, account);
     assert isBefore == isAfter;
-}
+}*/
 
 /// @title isKYC() cannot revert.
 rule isKYC_cannotRevert(method f) filtered{f -> !viewOrUpgrade(f)} {

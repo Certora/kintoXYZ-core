@@ -45,7 +45,8 @@ rule validatePayMasterCannotFrontRunEachOther() {
 rule noOperationFrontRunsValidate(method f) 
 filtered{f -> !viewOrUpgrade(f) &&  
     f.selector != sig:initialize(address,address,address).selector &&
-    f.selector != sig:validatePaymasterUserOp(SponsorPaymaster.UserOperation,bytes32,uint256).selector} 
+    f.selector != sig:validatePaymasterUserOp(SponsorPaymaster.UserOperation,bytes32,uint256).selector && 
+    f.selector != sig:setUserOpMaxCost(uint256).selector}
 {    
     env e1; calldataarg args1;
     env e2; calldataarg args2;

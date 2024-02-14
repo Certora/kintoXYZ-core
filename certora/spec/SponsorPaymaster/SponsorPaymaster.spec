@@ -68,19 +68,50 @@ rule balanceOnlyIncreasesByDeposit(address account, method f) filtered{f -> !vie
     assert reentrantWasCalled => (balanceBefore > balanceBefore => account == reentrant);
 }
 
-/// @title The balance of any account can decrease at most by the MAX_COST_OF_VERIFICATION().
-rule balanceDecreaseIsAtMostMaxOpCost(address account, method f) 
+/// @title The balance of any app can decrease at most by the eth max cost.
+rule balanceDecreaseIsAtMostMaxCost(address app, method f) 
 filtered{f -> !viewOrUpgrade(f) &&
     f.selector != sig:withdrawTokensTo(address,uint256).selector &&
     f.selector != sig:withdrawTo(address,uint256).selector} 
 {    
-    uint256 balanceBefore = balances(account);
-        env e;
-        calldataarg args;
-        f(e,args);
-    uint256 balanceAfter = balances(account);
+    uint256 balanceBefore = balances(app);
+    env e;
+    mathint ethMaxCost;
+    if(f.selector == sig:postOp(IPaymaster.PostOpMode,bytes,uint256).selector) {
+        IPaymaster.PostOpMode mode;
+        bytes context;
+        uint256 maxFeePerGas;
+        _, _, maxFeePerGas, _ = contextDecode(context);
+        uint256 actualGasCost;
+        /*
+        in _validatePaymasterUserOp:
+        uint256 gasPriceUserOp = userOp.maxFeePerGas;
+        uint256 ethMaxCost = (maxCost + COST_OF_POST * gasPriceUserOp);
+        bytes context = abi.encode(sponsor, userOp.sender, userOp.maxFeePerGas, userOp.maxPriorityFeePerGas;
 
-    assert balanceAfter < balanceBefore => balanceBefore - balanceAfter <= to_mathint(MAX_COST_OF_VERIFICATION());
+        in _postOp:
+        uint256 actualGasPrice = _min(maxFeePerGas, maxPriorityFeePerGas + block.basefee);
+        uint256 ethCost = (actualGasCost + COST_OF_POST * actualGasPrice);
+
+        hence:
+            actualGasPrice <= gasPriceUserOp;
+        */
+        /// From EntryPoint:
+        /// outOpInfo.prefund = requiredPrefund = maxCost
+        // if (opInfo.prefund < actualGasCost) revert ...
+        uint256 maxCost;
+        require actualGasCost <= maxCost;
+        require ethMaxCost == COST_OF_POST() * maxFeePerGas + maxCost;
+        postOp(e, mode, context, actualGasCost);
+    }
+    else {
+        require ethMaxCost == 0;
+        calldataarg args;
+        f(e, args);
+    }
+    uint256 balanceAfter = balances(app);
+
+    assert balanceAfter < balanceBefore => balanceBefore - balanceAfter <= ethMaxCost;
 }
 
 /// @title The operation count per app is updated correctly

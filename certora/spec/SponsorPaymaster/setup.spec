@@ -10,6 +10,7 @@ methods {
     function balances(address) external returns (uint256) envfree;
     function contractSpent(address) external returns (uint256) envfree;
     function unlockBlock(address) external returns (uint256) envfree;
+    function COST_OF_POST() external returns (uint256) envfree;
     function MAX_COST_OF_VERIFICATION() external returns (uint256) envfree;
     function MAX_COST_OF_PREVERIFICATION() external returns (uint256) envfree;
 

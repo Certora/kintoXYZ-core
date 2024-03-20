@@ -14,24 +14,30 @@ rule validatePayMasterCannotFrontRunEachOther() {
     uint256 maxCost1;
     uint256 maxCost2;
 
-    bytes context1; address account1; address wallet1; uint256 actualCost1;
-    bytes context2; address account2; address wallet2; uint256 actualCost2;
+    bytes context1; address account1; address wallet1; uint256 actualCost1; uint256 maxFee1;
+    bytes context2; address account2; address wallet2; uint256 actualCost2; uint256 maxFee2;
     
     storage initState = lastStorage;
     /// First attempt (validate + postOp)
     context1, _ = validatePaymasterUserOp(e1, userOp1, userOpHash1, maxCost1) at initState;
-    account1, wallet1, _, _ = contextDecode(context1);
+    account1, wallet1, maxFee1, _ = contextDecode(context1);
     postOp(e1, mode, context1, actualCost1);
     
     /// Second user (validate + postOp)
     context2, _ = validatePaymasterUserOp(e2, userOp2, userOpHash2, maxCost2) at initState;
-    account2, wallet2, _, _= contextDecode(context2);
+    account2, wallet2, maxFee2, _ = contextDecode(context2);
     postOp(e2, mode, context2, actualCost2);
 
     /// Currently we only consider different senders (wallet owners).
     /// If the apps are equal, then the total limit could be reached.
     require WalletOwners(wallet1, 0) != WalletOwners(wallet2, 0);
-
+    mathint ethMaxCost = (maxCost1 + COST_OF_POST() * userOp1.maxFeePerGas);
+    mathint ethActualCost = (actualCost1 + COST_OF_POST() * maxFee1);
+    /// Assumption: app deposits enough ETH for transactions.
+    require account1 == account2 => to_mathint(balances(account1)) >= ethMaxCost;
+    require account1 == account2 => to_mathint(balances(account1)) >= ethActualCost;
+    /// No overflow
+    require contractSpent(account1) + ethActualCost <= max_uint256;
     /// First attempt - again (validate + postOp)
     validatePaymasterUserOp@withrevert(e1, userOp1, userOpHash1, maxCost1);
     bool validateReverted = lastReverted;

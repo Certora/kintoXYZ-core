@@ -26,11 +26,11 @@ methods {
 
 ghost uint256 NumberOfTokens {init_state axiom NumberOfTokens == 0;}
 
-hook Sload uint256 _length _allTokens.(offset 0) STORAGE {
+hook Sload uint256 _length _allTokens.(offset 0) {
     require NumberOfTokens == _length;
 }
 
-hook Sstore _allTokens.(offset 0) uint256 _length (uint256 _length_old) STORAGE {
+hook Sstore _allTokens.(offset 0) uint256 _length (uint256 _length_old) {
     require NumberOfTokens == _length_old;
     NumberOfTokens = _length;
 }
@@ -39,11 +39,11 @@ ghost mapping(uint256 => uint256) TokenAtIndex {
     init_state axiom forall uint256 index. TokenAtIndex[index] == 0;
 }
 
-hook Sload uint256 tokenID _allTokens[INDEX uint256 indx] STORAGE {
+hook Sload uint256 tokenID _allTokens[INDEX uint256 indx] {
     require TokenAtIndex[indx] == tokenID;
 }
 
-hook Sstore _allTokens[INDEX uint256 indx] uint256 tokenID (uint256 tokenID_old) STORAGE {
+hook Sstore _allTokens[INDEX uint256 indx] uint256 tokenID (uint256 tokenID_old) {
     require TokenAtIndex[indx] == tokenID_old;
     TokenAtIndex[indx] = tokenID;
 }
@@ -58,11 +58,11 @@ ghost mapping(uint256 => uint256) tokensIndex {
     init_state axiom forall uint256 tokenID. tokensIndex[tokenID] == 0;
 }
 
-hook Sload uint256 index _allTokensIndex[KEY uint256 tokenID] STORAGE {
+hook Sload uint256 index _allTokensIndex[KEY uint256 tokenID] {
     require tokensIndex[tokenID] == index;
 }
 
-hook Sstore _allTokensIndex[KEY uint256 tokenID] uint256 index (uint256 index_old) STORAGE {
+hook Sstore _allTokensIndex[KEY uint256 tokenID] uint256 index (uint256 index_old) {
     require tokensIndex[tokenID] == index_old;
     tokensIndex[tokenID] = index;
 }

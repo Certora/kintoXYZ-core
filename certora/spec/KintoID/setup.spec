@@ -35,11 +35,11 @@ ghost mapping(address => uint8) _sanctionsCount {
     axiom forall address account. _sanctionsCount[account] <= MAX_SANCTIONS();
 }
 
-hook Sload uint8 count _kycmetas[KEY address account].sanctionsCount STORAGE {
+hook Sload uint8 count _kycmetas[KEY address account].sanctionsCount {
     require _sanctionsCount[account] == count;
 }
 
-hook Sstore _kycmetas[KEY address account].sanctionsCount uint8 count (uint8 count_old) STORAGE {
+hook Sstore _kycmetas[KEY address account].sanctionsCount uint8 count (uint8 count_old) {
     require _sanctionsCount[account] == count_old;
     _sanctionsCount[account] = count;
 }

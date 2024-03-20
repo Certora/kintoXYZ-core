@@ -69,7 +69,7 @@ ghost mathint sumOfUserBalances_init {init_state axiom sumOfUserBalances_init ==
 ghost mathint sumOfUserBalances {init_state axiom sumOfUserBalances == 0;}
 definition excludeFromSum(address account) returns bool = false;//account == currentContract;
 
-hook Sload uint256 balance balances[KEY address user] STORAGE {
+hook Sload uint256 balance balances[KEY address user] {
     if(!accessedUser[user] && !excludeFromSum(user)) {
         accessedUser[user] = true;
         sumOfUserBalances_init = sumOfUserBalances_init - balance;
@@ -77,7 +77,7 @@ hook Sload uint256 balance balances[KEY address user] STORAGE {
     }
 }
 
-hook Sstore balances[KEY address user] uint256 balance_new (uint256 balance_old) STORAGE {
+hook Sstore balances[KEY address user] uint256 balance_new (uint256 balance_old) {
     if(!excludeFromSum(user)) {
         sumOfUserBalances = sumOfUserBalances + balance_new - balance_old;
     }
